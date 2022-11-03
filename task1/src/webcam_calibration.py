@@ -1,6 +1,11 @@
 import cv2
 import numpy as np
 
+__reference__ = [
+    "https://www.ostirion.net/post/webcam-calibration-with-opencv-directly-from-the-stream",
+    "https://docs.opencv.org/4.x/dc/dbb/tutorial_py_calibration.html",
+]
+
 # Define the dimensions of checkerboard
 CHECKERBOARD = (7, 7)
 MIN_POINTS = 50
