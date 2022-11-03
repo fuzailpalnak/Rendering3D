@@ -108,7 +108,7 @@ def create_point_map(image1, image2):
     return point_map
 
 
-def main(image1, image2, directory, verbose=True):
+def main(image1, image2):
     """
     Info
     """

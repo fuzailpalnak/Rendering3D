@@ -48,7 +48,9 @@ def generate_parameters_for_calibration():
 
     object_p3d = obj3d()
 
-    while True:
+    loop = True
+    while loop:
+        print("ACCESS THROUGH VIDEO FEED")
         _, img = cap.read()
         image = img
         img_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -82,24 +84,24 @@ def generate_parameters_for_calibration():
                 cap.release()
                 writer.release()
                 cv2.destroyAllWindows()
-                break
+                print("HAVE MIN NUMBER OF POINTS STOP")
+                return image, img_gray, points_2d, points_3d
 
             # Draw and display the corners:
             image = cv2.drawChessboardCorners(image, CHECKERBOARD, corners2, ret)
 
         cv2.imshow("img", image)
 
-        if RECORD:
-            writer.write(image)
+        writer.write(image)
 
         # wait for ESC key to exit and terminate feed.
         k = cv2.waitKey(1)
         if k == 27:
+            print("EXIT")
             cap.release()
             writer.release()
             cv2.destroyAllWindows()
-            break
-    return image, img_gray, points_2d, points_3d
+            return image, img_gray, points_2d, points_3d
 
 
 def run_calibration():
@@ -109,6 +111,7 @@ def run_calibration():
     # passing the value of above found out 3D points (threedpoints)
     # and its corresponding pixel coordinates of the
     # detected corners (twodpoints):
+    print("CALIBRATION IN PROGRESS")
     ret, matrix, distortion, r_vecs, t_vecs = cv2.calibrateCamera(
         points_3d, points_2d, img_gray.shape[::-1], None, None
     )
