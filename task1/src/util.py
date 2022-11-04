@@ -6,10 +6,7 @@ GREEN = (0, 255, 0)
 RED = (0, 0, 255)
 
 
-def draw_inliers(image, point_map, inliers):
-    """
-    inliers: set of (x1, y1) points
-    """
+def draw_pairs(image, point_map, pairs):
     rows, cols = image.shape[0:2]
     ret_image = np.zeros((rows, cols, 3), dtype="uint8")
     ret_image[:, :, :] = image if image.ndim == 3 else np.dstack([image] * 3)
@@ -17,16 +14,13 @@ def draw_inliers(image, point_map, inliers):
     # Draw circles on top of the lines
     for x1, y1, x2, y2 in point_map:
         point = (int(x2), int(y2))
-        color = GREEN if (x1, y1, x2, y2) in inliers else RED
+        color = GREEN if (x1, y1, x2, y2) in pairs else RED
         cv2.circle(ret_image, point, 4, color, 1)
 
     return ret_image
 
 
-def draw_key_points(image1, image2, point_map, inliers=None, max_points=1000):
-    """
-    inliers: set of (x1, y1) points
-    """
+def draw_key_points(image1, image2, point_map, pairs=None, max_points=1000):
     rows1, cols1 = image1.shape[0:2]
     rows2, cols2 = image2.shape[0:2]
 
@@ -47,7 +41,7 @@ def draw_key_points(image1, image2, point_map, inliers=None, max_points=1000):
         point1 = (int(x1), int(y1))
         point2 = (int(x2 + image1.shape[1]), int(y2))
         color = (
-            BLUE if inliers is None else (GREEN if (x1, y1, x2, y2) in inliers else RED)
+            BLUE if pairs is None else (GREEN if (x1, y1, x2, y2) in pairs else RED)
         )
 
         cv2.line(match_image, point1, point2, color, 1)

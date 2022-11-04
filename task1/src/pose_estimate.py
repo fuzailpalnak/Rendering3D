@@ -4,10 +4,10 @@ from typing import Union
 import cv2
 import numpy as np
 
-from task1.src.util import draw_inliers, draw_key_points
+from task1.src.util import draw_pairs, draw_key_points
 from task1.src.ops import ransac, find_features, match_features
 
-MODEL_IMAGE = r"C:\Users\Fuzail.Palnak\UHD\openSource\AR\task1\data\IMG_3435.jpg"
+MODEL_IMAGE = r""
 MP = r"../output/matches"
 KP = r"../output/keypoints"
 
@@ -89,12 +89,12 @@ def run(pth: Union[str, int] = 0):
 
             cv2.imwrite(
                 os.path.join(MP, f"{str(i)}.png"),
-                draw_inliers(frame.copy(), point_map, inliers),
+                draw_pairs(frame.copy(), point_map, inliers),
             )
 
             cv2.imwrite(
                 os.path.join(KP, f"{i}_mapping.png"),
-                draw_key_points(model_image, frame.copy(), point_map, inliers=inliers),
+                draw_key_points(model_image, frame.copy(), point_map, pairs=inliers),
             )
 
         # if homography is not None:
@@ -117,4 +117,4 @@ def run(pth: Union[str, int] = 0):
         i += 1
 
 
-run(r"C:\Users\Fuzail.Palnak\UHD\openSource\AR\task1\data\IMG_3437_cropped.mp4")
+run(r"")

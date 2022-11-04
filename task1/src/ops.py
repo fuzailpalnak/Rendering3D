@@ -39,35 +39,35 @@ def error(pair, H):
 
 def ransac(point_map, threshold=THRESHOLD):
     print(f"Running RANSAC with {len(point_map)} points...")
-    max_inliers = set()
+    best_pairs = set()
     homography = None
     for i in range(NUM_ITERATIONS):
         # randomly choose 4 points from the matrix to compute the homography
         pairs = [point_map[i] for i in np.random.choice(len(point_map), 4)]
 
         H = compute_homography(pairs)
-        inliers = {(c[0], c[1], c[2], c[3]) for c in point_map if error(c, H) < 200}
+        matched_pair = {(c[0], c[1], c[2], c[3]) for c in point_map if error(c, H) < 200}
 
         print(
             f"\x1b[2K\r└──> iteration {i + 1}/{NUM_ITERATIONS} "
-            + f"\t{len(inliers)} inlier"
-            + ("s " if len(inliers) != 1 else " ")
-            + f"\tbest: {len(max_inliers)}",
+            + f"\t{len(matched_pair)} inlier"
+            + ("s " if len(matched_pair) != 1 else " ")
+            + f"\tbest: {len(best_pairs)}",
             end="",
         )
 
-        if len(inliers) > len(max_inliers):
-            max_inliers = inliers
+        if len(matched_pair) > len(best_pairs):
+            best_pairs = matched_pair
             homography = H
 
-        if len(max_inliers) > (len(point_map) * threshold):
+        if len(best_pairs) > (len(point_map) * threshold):
             break
 
     print(f"\nNum matches: {len(point_map)}")
-    print(f"Num inliers: {len(max_inliers)}")
+    print(f"Num inliers: {len(best_pairs)}")
     print(f"Min inliers: {len(point_map) * threshold}")
 
-    return homography, max_inliers
+    return homography, best_pairs
 
 
 def find_features(img: np.ndarray):
