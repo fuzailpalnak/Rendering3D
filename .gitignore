@@ -1,4 +1,6 @@
 # Byte-compiled / optimized / DLL files
+task1/data/*
+task1/output/*
 /.idea*
 .idea/
 __pycache__/
