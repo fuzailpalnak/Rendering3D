@@ -2,7 +2,7 @@ import numpy as np
 
 
 def Normalization(nd, x):
-    '''
+    """
     Normalization of coordinates (centroid to the origin and mean distance of sqrt(2 or 3).
 
     Input
@@ -13,7 +13,7 @@ def Normalization(nd, x):
     ------
     Tr: the transformation matrix (translation plus scaling)
     x: the transformed data
-    '''
+    """
 
     x = np.asarray(x)
     m, s = np.mean(x, 0), np.std(x)
@@ -30,7 +30,7 @@ def Normalization(nd, x):
 
 
 def DLTcalib(nd, xyz, uv):
-    '''
+    """
     Camera calibration by DLT using known object points and their image points.
 
     Input
@@ -47,9 +47,9 @@ def DLTcalib(nd, xyz, uv):
     ------
      L: array of 11 parameters of the calibration matrix.
      err: error of the DLT (mean residual of the DLT transformation in units of camera coordinates).
-    '''
-    if (nd != 3):
-        raise ValueError('%dD DLT unsupported.' % (nd))
+    """
+    if nd != 3:
+        raise ValueError("%dD DLT unsupported." % (nd))
 
     # Converting all variables to numpy array
     xyz = np.asarray(xyz)
@@ -59,14 +59,22 @@ def DLTcalib(nd, xyz, uv):
 
     # Validating the parameters:
     if uv.shape[0] != n:
-        raise ValueError('Object (%d points) and image (%d points) have different number of points.' % (n, uv.shape[0]))
-
-    if (xyz.shape[1] != 3):
-        raise ValueError('Incorrect number of coordinates (%d) for %dD DLT (it should be %d).' % (xyz.shape[1], nd, nd))
-
-    if (n < 6):
         raise ValueError(
-            '%dD DLT requires at least %d calibration points. Only %d points were entered.' % (nd, 2 * nd, n))
+            "Object (%d points) and image (%d points) have different number of points."
+            % (n, uv.shape[0])
+        )
+
+    if xyz.shape[1] != 3:
+        raise ValueError(
+            "Incorrect number of coordinates (%d) for %dD DLT (it should be %d)."
+            % (xyz.shape[1], nd, nd)
+        )
+
+    if n < 6:
+        raise ValueError(
+            "%dD DLT requires at least %d calibration points. Only %d points were entered."
+            % (nd, 2 * nd, n)
+        )
 
     # Normalize the data to improve the DLT quality (DLT is dependent of the system of coordinates).
     # This is relevant when there is a considerable perspective distortion.
@@ -115,16 +123,22 @@ def DLTcalib(nd, xyz, uv):
 
 def DLT():
     # Known 3D coordinates
-    xyz = [[-875, 0, 9.755], [442, 0, 9.755], [1921, 0, 9.755], [2951, 0.5, 9.755], [-4132, 0.5, 23.618],
-           [-876, 0, 23.618]]
+    xyz = [
+        [-875, 0, 9.755],
+        [442, 0, 9.755],
+        [1921, 0, 9.755],
+        [2951, 0.5, 9.755],
+        [-4132, 0.5, 23.618],
+        [-876, 0, 23.618],
+    ]
     # Known pixel coordinates
     uv = [[76, 706], [702, 706], [1440, 706], [1867, 706], [264, 523], [625, 523]]
 
     nd = 3
     P, err = DLTcalib(nd, xyz, uv)
-    print('Matrix')
+    print("Matrix")
     print(P)
-    print('\nError')
+    print("\nError")
     print(err)
 
 

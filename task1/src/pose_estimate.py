@@ -35,9 +35,13 @@ WEBCAM_DST = np.array(
     [[-1.38550017e00, 3.99507333e00, -2.90393843e-03, 2.41582743e-02, -4.97242005e00]]
 )
 
-IPHONE_14_PRO = np.array(        [[6.23649154e+02, 0.00000000e+00, 1.45491457e+03],
-        [0.00000000e+00, 6.24325606e+02, 1.94913052e+03],
-        [0.00000000e+00, 0.00000000e+00, 1.00000000e+00]])
+IPHONE_14_PRO = np.array(
+    [
+        [6.23649154e02, 0.00000000e00, 1.45491457e03],
+        [0.00000000e00, 6.24325606e02, 1.94913052e03],
+        [0.00000000e00, 0.00000000e00, 1.00000000e00],
+    ]
+)
 
 
 def get_extended_RT(A, H):
@@ -53,7 +57,9 @@ def get_extended_RT(A, H):
 
     # ideally |r1| and |r2| should be same
     # since there is always some error we take square_root(|r1||r2|) as the normalization factor
-    norm = np.float64(math.sqrt(np.float64(np.linalg.norm(r1)) * np.float64(np.linalg.norm(r2))))
+    norm = np.float64(
+        math.sqrt(np.float64(np.linalg.norm(r1)) * np.float64(np.linalg.norm(r2)))
+    )
 
     r3 = np.cross(r1, r2) / (norm)
     R_T = np.zeros((3, 4))
@@ -62,6 +68,7 @@ def get_extended_RT(A, H):
     R_T[:, 2] = r3
     R_T[:, 3] = T
     return R_T
+
 
 def projection_matrix(camera_parameters, homography):
     """
@@ -83,8 +90,12 @@ def projection_matrix(camera_parameters, homography):
     c = rot_1 + rot_2
     p = np.cross(rot_1, rot_2)
     d = np.cross(c, p)
-    rot_1 = np.dot(c / np.linalg.norm(c, 2) + d / np.linalg.norm(d, 2), 1 / math.sqrt(2))
-    rot_2 = np.dot(c / np.linalg.norm(c, 2) - d / np.linalg.norm(d, 2), 1 / math.sqrt(2))
+    rot_1 = np.dot(
+        c / np.linalg.norm(c, 2) + d / np.linalg.norm(d, 2), 1 / math.sqrt(2)
+    )
+    rot_2 = np.dot(
+        c / np.linalg.norm(c, 2) - d / np.linalg.norm(d, 2), 1 / math.sqrt(2)
+    )
     rot_3 = np.cross(rot_1, rot_2)
     # finally, compute the 3D projection matrix from the model to the current frame
     projection = np.stack((rot_1, rot_2, rot_3, translation)).T
@@ -184,7 +195,9 @@ def run(pth: Union[str, int] = 0):
             r_t = get_extended_RT(WEBCAM_INTRINSIC, opencv_homography)
             transformation = WEBCAM_INTRINSIC.dot(r_t)
 
-            projection = np.dot(WEBCAM_INTRINSIC,  projection_matrix(WEBCAM_INTRINSIC, homography))
+            projection = np.dot(
+                WEBCAM_INTRINSIC, projection_matrix(WEBCAM_INTRINSIC, homography)
+            )
             axis = np.float32(
                 [
                     [0, 0, 0],

@@ -36,9 +36,13 @@ WEBCAM_DST = np.array(
     [[-1.38550017e00, 3.99507333e00, -2.90393843e-03, 2.41582743e-02, -4.97242005e00]]
 )
 
-IPHONE_14_PRO = np.array(        [[6.23649154e+02, 0.00000000e+00, 1.45491457e+03],
-        [0.00000000e+00, 6.24325606e+02, 1.94913052e+03],
-        [0.00000000e+00, 0.00000000e+00, 1.00000000e+00]])
+IPHONE_14_PRO = np.array(
+    [
+        [6.23649154e02, 0.00000000e00, 1.45491457e03],
+        [0.00000000e00, 6.24325606e02, 1.94913052e03],
+        [0.00000000e00, 0.00000000e00, 1.00000000e00],
+    ]
+)
 
 
 def get_extended_RT(A, H):
@@ -54,7 +58,9 @@ def get_extended_RT(A, H):
 
     # ideally |r1| and |r2| should be same
     # since there is always some error we take square_root(|r1||r2|) as the normalization factor
-    norm = np.float64(math.sqrt(np.float64(np.linalg.norm(r1)) * np.float64(np.linalg.norm(r2))))
+    norm = np.float64(
+        math.sqrt(np.float64(np.linalg.norm(r1)) * np.float64(np.linalg.norm(r2)))
+    )
 
     r3 = np.cross(r1, r2) / (norm)
     R_T = np.zeros((3, 4))
@@ -63,6 +69,7 @@ def get_extended_RT(A, H):
     R_T[:, 2] = r3
     R_T[:, 3] = T
     return R_T
+
 
 def projection_matrix(camera_parameters, homography):
     """
@@ -84,8 +91,12 @@ def projection_matrix(camera_parameters, homography):
     c = rot_1 + rot_2
     p = np.cross(rot_1, rot_2)
     d = np.cross(c, p)
-    rot_1 = np.dot(c / np.linalg.norm(c, 2) + d / np.linalg.norm(d, 2), 1 / math.sqrt(2))
-    rot_2 = np.dot(c / np.linalg.norm(c, 2) - d / np.linalg.norm(d, 2), 1 / math.sqrt(2))
+    rot_1 = np.dot(
+        c / np.linalg.norm(c, 2) + d / np.linalg.norm(d, 2), 1 / math.sqrt(2)
+    )
+    rot_2 = np.dot(
+        c / np.linalg.norm(c, 2) - d / np.linalg.norm(d, 2), 1 / math.sqrt(2)
+    )
     rot_3 = np.cross(rot_1, rot_2)
     # finally, compute the 3D projection matrix from the model to the current frame
     projection = np.stack((rot_1, rot_2, rot_3, translation)).T
@@ -114,7 +125,9 @@ def run(pth: Union[str, int] = 0):
         _, frame = cap.read()
 
         # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        frame = cv2.imread("/home/palnak/Workspace/Studium/msc/sem3/assignment/AR/task1/data/test.jpg")
+        frame = cv2.imread(
+            "/home/palnak/Workspace/Studium/msc/sem3/assignment/AR/task1/data/test.jpg"
+        )
         frame_rgb = frame.copy()
         frame_rgb = cv2.cvtColor(frame_rgb, cv2.COLOR_BGR2RGB)
 
@@ -144,11 +157,22 @@ def run(pth: Union[str, int] = 0):
         wc = list()
         ic = list()
         for match in matches:
-            wc.append([int(model_image_key_points[match.queryIdx].pt[0]),
-            int(model_image_key_points[match.queryIdx].pt[1]), 0, 1])
+            wc.append(
+                [
+                    int(model_image_key_points[match.queryIdx].pt[0]),
+                    int(model_image_key_points[match.queryIdx].pt[1]),
+                    0,
+                    1,
+                ]
+            )
 
-            ic.append([int(f_key_points[match.trainIdx].pt[0]),
-                    int(f_key_points[match.trainIdx].pt[1]), 1])
+            ic.append(
+                [
+                    int(f_key_points[match.trainIdx].pt[0]),
+                    int(f_key_points[match.trainIdx].pt[1]),
+                    1,
+                ]
+            )
 
         # HOMOGRAPHY ESTIMATION
         homography, inliers = ransac(point_map)
@@ -204,14 +228,21 @@ def run(pth: Union[str, int] = 0):
         ### Plotting the reconstructed and original points
         reprojected_image = frame_rgb.copy()
         for pt in ic:
-            reprojected_image[pt[1] - 25:pt[1] + 25, pt[0] - 25:pt[0] + 25, :] = [0, 0, 255]
+            reprojected_image[pt[1] - 25 : pt[1] + 25, pt[0] - 25 : pt[0] + 25, :] = [
+                0,
+                0,
+                255,
+            ]
         for pt in ppp:
-            reprojected_image[pt[1] - 25:pt[1] + 25, pt[0] - 25:pt[0] + 25, :] = [255, 0, 0]
+            reprojected_image[pt[1] - 25 : pt[1] + 25, pt[0] - 25 : pt[0] + 25, :] = [
+                255,
+                0,
+                0,
+            ]
         plt.imshow(img)
-        plt.title('RANSAC DLT       Blue: Original Points     Red: Reprojected Points')
+        plt.title("RANSAC DLT       Blue: Original Points     Red: Reprojected Points")
         plt.show()
         exit(0)
-
 
 
 run(0)

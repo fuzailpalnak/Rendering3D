@@ -7,13 +7,16 @@ import numpy as np
 THRESHOLD = 0.6
 NUM_ITERATIONS = 1000
 
+
 def dlt(A):
     U, D, V = np.linalg.svd(A)
     P = V[11, :]
-    P = (np.reshape(P, (3, 4)))
+    P = np.reshape(P, (3, 4))
     ### P is the projection matrix
     P = P / P[2, 3]
     return P
+
+
 def compute_homography(pairs):
     A = []
     B = []
@@ -27,7 +30,6 @@ def compute_homography(pairs):
         B.append([x, y, z, 1, 0, 0, 0, 0, -u * x, -u * y, -u * z, -u])
         B.append([0, 0, 0, 0, x, y, z, 1, -v * x, -v * y, -v * z, -v])
     A = np.array(A)
-
 
     # Singular Value Decomposition (SVD)
     U, S, V = np.linalg.svd(A)
@@ -65,7 +67,7 @@ def projection_matrix_estimation(img_pts, world_pts):
 
     U, D, V = np.linalg.svd(A)
     P = V[11, :]
-    P = (np.reshape(P, (3, 4)))
+    P = np.reshape(P, (3, 4))
     P = P / P[2, 3]
     return P
 
@@ -106,11 +108,11 @@ def ransac(point_map, threshold=THRESHOLD):
 
 
 def find_features(img: np.ndarray):
-    sift = cv2.SIFT_create()
+    sift = cv2.ORB_create()
     key_points, descriptors = sift.detectAndCompute(img, None)
     return key_points, descriptors
 
 
 def match_features(desc1, desc2):
-    matches = cv2.BFMatcher(cv2.NORM_L2, True).match(desc1, desc2)
+    matches = cv2.BFMatcher(cv2.NORM_HAMMING, True).match(desc1, desc2)
     return matches
