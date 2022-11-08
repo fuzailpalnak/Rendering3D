@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from task1.src.pose import dlt_ransac
 from task1.src.util import draw_pairs
 
-referenceImage = cv2.imread(r"C:\Users\Fuzail.Palnak\Downloads\referenceImage.jpg", 0)
+referenceImage = cv2.imread(r"/home/palnak/st1.jpg", 0)
 
 
 class OBJ:
@@ -64,7 +64,7 @@ plt.imshow(referenceImage, cmap="gray")
 plt.show()
 
 # Load the source image and convert it to gray scale
-sourceImage = cv2.imread(r"C:\Users\Fuzail.Palnak\Downloads\sourceImage_04.jpg", 0)
+sourceImage = cv2.imread(r"/home/palnak/Workspace/Studium/msc/sem3/assignment/AR/task1/data/source_test.jpg", 0)
 
 # Show image
 plt.imshow(sourceImage, cmap="gray")
@@ -170,10 +170,10 @@ plt.figure(figsize=(12, 6))
 plt.imshow(pairs_img, cmap="gray")
 plt.show()
 
-obj = OBJ(r"C:\Users\Fuzail.Palnak\UHD\openSource\AR\chair.obj", swapyz=True)
+obj = OBJ(r"/home/palnak/Workspace/Studium/msc/sem3/assignment/AR/task1/data/chair.obj", swapyz=True)
 
 # project cube or model
-def render(img, obj, projection, model, color=False):
+def render(img, obj, projection, dlt, model, color=False):
 
     vertices = obj.vertices
     scale_matrix = np.eye(3) * 6
@@ -186,14 +186,24 @@ def render(img, obj, projection, model, color=False):
         # render model in the middle of the reference surface. To do so,
         # model points must be displaced
         points = np.array([[p[0] + w / 2, p[1] + h / 2, p[2]] for p in points])
-        dst = cv2.perspectiveTransform(points.reshape(-1, 1, 3), projection)
+
+        pp = np.c_[points, np.ones(len(points))]
+        uv2 = np.dot(dlt, pp.T)
+        uv2 = uv2 / uv2[2, :]
+
+        projections = np.zeros((points.shape[0], 3))
+        for i in range(points.shape[0]):
+            projections[i, :] = np.matmul(dlt, np.transpose(pp[i, :]))
+            projections[i, :] = projections[i, :] / projections[i, 2]
+
+        dst = cv2.perspectiveTransform(points.reshape(-1, 1, 3), dlt)
         imgpts = np.int32(dst)
 
         cv2.fillConvexPoly(img, imgpts, (80, 27, 211))
     return img
 
 
-frame = render(sourceImage, obj, pm1, referenceImage, False)
+frame = render(sourceImage, obj, pm1, pm, referenceImage, False)
 plt.figure(figsize=(12, 6))
 plt.imshow(frame, cmap="gray")
 plt.show()

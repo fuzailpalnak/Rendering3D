@@ -9,7 +9,7 @@ import numpy as np
 from task1.src.util import draw_pairs, draw_key_points
 from task1.src.ops import ransac, find_features, match_features
 
-MODEL_IMAGE = r"../data/surface_test.jpg"
+MODEL_IMAGE = r"/home/palnak/st1.jpg"
 MP = r"../output/matches"
 KP = r"../output/keypoints"
 
@@ -40,9 +40,14 @@ def decompose_dlt(P):
     return R, K, T
 
 
-def projection_error(projection_matrix, ic, wc):
+def project_wc_on_ic(projection_matrix, wc):
     projected_points = np.matmul(projection_matrix, np.transpose(wc[0, :]))
     projected_points = projected_points / projected_points[2]
+    return projected_points
+
+
+def projection_error(projection_matrix, ic, wc):
+    projected_points = project_wc_on_ic(projection_matrix, wc)
     return np.abs(projected_points[0] - ic[0, 0]) + np.abs(
         projected_points[1] - ic[0, 1]
     )
@@ -93,7 +98,7 @@ def dlt_ransac(point_map, threshold=0.6):
                 _ic = ic[it]
 
                 pe = projection_error(pm, _ic[np.newaxis], _wc[np.newaxis])
-                if pe < 200:
+                if pe < 10:
                     matched_pair.add((_wc[0], _wc[1], _ic[0], _ic[1]))
 
             print(
@@ -138,6 +143,7 @@ def run(pth: Union[str, int] = 0):
     while cap.isOpened():
         print(f"\x1b[2K\r└──> Frame {i + 1}", end="")
         _, frame = cap.read()
+        # cv2.imwrite("source_test.jpg", frame)
         frame_rgb = frame.copy()
 
         # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -184,7 +190,7 @@ def run(pth: Union[str, int] = 0):
             )
 
             mapping_img = draw_key_points(
-                model_image, frame.copy(), point_map, pairs=matched_pairs
+                model_image, frame.copy(), list(matched_pairs), pairs=matched_pairs
             )
             cv2.imwrite(
                 os.path.join(KP, f"{i}_mapping.png"),
@@ -198,4 +204,4 @@ def run(pth: Union[str, int] = 0):
             break
 
 
-run(r"C:\Users\Fuzail.Palnak\UHD\openSource\AR\task1\data\surface_demo.webm")
+run(r"/home/palnak/surface_demo.webm")
