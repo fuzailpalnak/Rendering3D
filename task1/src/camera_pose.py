@@ -4,13 +4,14 @@ from typing import Union
 
 import cv2
 import numpy as np
+from matplotlib import pyplot as plt
 
 from task1.src.dlt import RANSAC
 from task1.src.util import draw_pairs, draw_key_points
 from task1.src.ops import ransac, find_features, match_features
 
 MODEL_IMAGE = (
-    r"/home/palnak/Workspace/Studium/msc/sem3/assignment/AR/task1/data/surface_5.jpeg"
+    r"/home/palnak/Workspace/Studium/msc/sem3/assignment/AR/task1/data/surface_6.jpg"
 )
 MP = r"../output/matches"
 KP = r"../output/keypoints"
@@ -112,24 +113,20 @@ def run(pth: Union[str, int] = 0):
         print(f"\x1b[2K\r└──> Frame {i + 1}", end="")
         _, frame = cap.read()
 
+        # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        frame = cv2.imread("/home/palnak/Workspace/Studium/msc/sem3/assignment/AR/task1/data/test.jpg")
+        frame_rgb = frame.copy()
+        frame_rgb = cv2.cvtColor(frame_rgb, cv2.COLOR_BGR2RGB)
+
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
         h, w = frame.shape[0:2]
-        model_image = cv2.resize(model_image, (w, h), interpolation=cv2.INTER_AREA)
+        # model_image = cv2.resize(model_image, (w, h), interpolation=cv2.INTER_AREA)
         # model_image = cv2.rotate(model_image, cv2.ROTATE_90_CLOCKWISE)
         model_image_key_points, model_image_desc = find_features(model_image)
 
         # INTEREST POINT DETECTION
         f_key_points, f_desc = find_features(frame)
-        if DEBUG:
-            cv2.imwrite(
-                os.path.join(KP, f"{i}_keypoints-1.png"),
-                cv2.drawKeypoints(model_image, model_image_key_points, model_image),
-            )
-            cv2.imwrite(
-                os.path.join(KP, f"{i}_keypoints-2.png"),
-                cv2.drawKeypoints(frame.copy(), f_key_points, frame.copy()),
-            )
 
         # FEATURE MATCHING
         matches = match_features(model_image_desc, f_desc)
@@ -144,92 +141,77 @@ def run(pth: Union[str, int] = 0):
                 for match in matches
             ]
         )
+        wc = list()
+        ic = list()
+        for match in matches:
+            wc.append([int(model_image_key_points[match.queryIdx].pt[0]),
+            int(model_image_key_points[match.queryIdx].pt[1]), 0, 1])
+
+            ic.append([int(f_key_points[match.trainIdx].pt[0]),
+                    int(f_key_points[match.trainIdx].pt[1]), 1])
 
         # HOMOGRAPHY ESTIMATION
         homography, inliers = ransac(point_map)
 
-        if DEBUG:
-            matches_sorted = sorted(matches, key=lambda x: x.distance)
-            src_pts = np.float32(
-                [model_image_key_points[m.queryIdx].pt for m in matches_sorted]
-            ).reshape(-1, 1, 2)
-            dst_pts = np.float32(
-                [f_key_points[m.trainIdx].pt for m in matches_sorted]
-            ).reshape(-1, 1, 2)
-
-            opencv_homography, mask = cv2.findHomography(
-                src_pts, dst_pts, cv2.RANSAC, 5.0
-            )
-            print("homography by OPENCV")
-            print(f"└──>{opencv_homography}")
-
-            print("\nEstimated homography")
-            print(f"└──>{homography}")
-
-            pairs_img = draw_pairs(frame.copy(), point_map, inliers)
-            cv2.imwrite(
-                os.path.join(MP, f"{str(i)}.png"),
-                pairs_img,
-            )
-
-            mapping_img = draw_key_points(
-                model_image, frame.copy(), point_map, pairs=inliers
-            )
-            cv2.imwrite(
-                os.path.join(KP, f"{i}_mapping.png"),
-                mapping_img,
-            )
-
-        if homography is not None:
-            r_t = get_extended_RT(WEBCAM_INTRINSIC, opencv_homography)
-            transformation = WEBCAM_INTRINSIC.dot(r_t)
-
-            projection = np.dot(WEBCAM_INTRINSIC,  projection_matrix(WEBCAM_INTRINSIC, homography))
-            axis = np.float32(
-                [
-                    [0, 0, 0],
-                    [0, 3, 0],
-                    [3, 3, 0],
-                    [3, 0, 0],
-                    [0, 0, -3],
-                    [0, 3, -3],
-                    [3, 3, -3],
-                    [3, 0, -3],
-                ]
-            )
-            # objectPoints = 3 * axis
-            dst = cv2.perspectiveTransform(axis.reshape(-1, 1, 3), projection)
-            imgpts = np.int32(dst)
-            #
-            # num, Rs, Ts, Ns = cv2.decomposeHomographyMat(homography, WEBCAM_INTRINSIC)
-            # imgpts, jac = cv2.projectPoints(
-            #     axis, Rs[1], Ts[1], WEBCAM_INTRINSIC, WEBCAM_DST
-            # )
-
-            imgpts = np.int32(imgpts).reshape(-1, 2)
-            #
-            # # draw ground floor in green
-            img = cv2.drawContours(frame.copy(), [imgpts[:4]], -1, (0, 255, 0), -1)
-
-            # draw pillars in blue color
-            for i, j in zip(range(4), range(4, 8)):
-                img = cv2.line(img, tuple(imgpts[i]), tuple(imgpts[j]), (255), 3)
-
-            # draw top layer in red color
-            img = cv2.drawContours(img, [imgpts[4:]], -1, (0, 0, 255), 3)
+        ic = np.array(ic)
+        wc = np.array(wc)
+        cpm, inl = RANSAC(ic, wc)
 
         i += 1
-        # cv2.imwrite(
-        #     os.path.join(MP, f"{i}_mapping_polylines.png"),
-        #     poly_lines,
-        # )
-        cv2.imshow("img", mapping_img)
-        if cv2.waitKey(1) == 27:
-            break
 
-        # cv2.imshow("img", img)
-        # cv2.imwrite("her.png", img)
-        # writer.write(img)
+        ### Finding Reprojected Points
+        projections = np.zeros((ic.shape[0], 3))
+        for i in range(ic.shape[0]):
+            projections[i, :] = np.matmul(cpm, np.transpose(wc[i, :]))
+            projections[i, :] = projections[i, :] / projections[i, 2]
+        ppp = []
+        for aa in projections:
+            ppp.append([int(aa[0]), int(aa[1])])
+
+        axis = np.float32(
+            [
+                [0, 0, 0],
+                [0, 3, 0],
+                [3, 3, 0],
+                [3, 0, 0],
+                [0, 0, -3],
+                [0, 3, -3],
+                [3, 3, -3],
+                [3, 0, -3],
+            ]
+        )
+        # objectPoints = 3 * axis
+        dst = cv2.perspectiveTransform(axis.reshape(-1, 1, 3), cpm)
+        imgpts = np.int32(dst)
+        #
+        # num, Rs, Ts, Ns = cv2.decomposeHomographyMat(homography, WEBCAM_INTRINSIC)
+        # imgpts, jac = cv2.projectPoints(
+        #     axis, Rs[1], Ts[1], WEBCAM_INTRINSIC, WEBCAM_DST
+        # )
+
+        imgpts = np.array(ppp).reshape(-1, 2)
+        #
+        # # draw ground floor in green
+        img = cv2.drawContours(frame_rgb.copy(), [imgpts[:4]], -1, (0, 255, 0), -1)
+
+        # draw pillars in blue color
+        for i, j in zip(range(4), range(4, 8)):
+            img = cv2.line(img, tuple(imgpts[i]), tuple(imgpts[j]), (255), 3)
+
+        # draw top layer in red color
+        img = cv2.drawContours(img, [imgpts[4:]], -1, (0, 0, 255), 3)
+
+        ### Plotting the reconstructed and original points
+        reprojected_image = frame_rgb.copy()
+        for pt in ic:
+            reprojected_image[pt[1] - 25:pt[1] + 25, pt[0] - 25:pt[0] + 25, :] = [0, 0, 255]
+        for pt in ppp:
+            reprojected_image[pt[1] - 25:pt[1] + 25, pt[0] - 25:pt[0] + 25, :] = [255, 0, 0]
+        plt.imshow(img)
+        plt.title('RANSAC DLT       Blue: Original Points     Red: Reprojected Points')
+        plt.show()
+        exit(0)
+
 
 
 run(0)

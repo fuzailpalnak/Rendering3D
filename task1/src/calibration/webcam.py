@@ -123,11 +123,11 @@ def run_calibration():
     print("\n Distortion coefficient:")
     print(distortion)
 
-    print("\n Rotation Vectors:")
-    print(r_vecs)
-
-    print("\n Translation Vectors:")
-    print(t_vecs)
+    # print("\n Rotation Vectors:")
+    # print(r_vecs)
+    #
+    # print("\n Translation Vectors:")
+    # print(t_vecs)
 
 
 if __name__ == "__main__":

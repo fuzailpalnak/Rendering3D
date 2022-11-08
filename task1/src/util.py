@@ -40,9 +40,7 @@ def draw_key_points(image1, image2, point_map, pairs=None, max_points=1000):
     for x1, y1, x2, y2 in small_point_map:
         point1 = (int(x1), int(y1))
         point2 = (int(x2 + image1.shape[1]), int(y2))
-        color = (
-            BLUE if pairs is None else (GREEN if (x1, y1, x2, y2) in pairs else RED)
-        )
+        color = BLUE if pairs is None else (GREEN if (x1, y1, x2, y2) in pairs else RED)
 
         cv2.line(match_image, point1, point2, color, 1)
 

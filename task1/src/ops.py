@@ -7,13 +7,27 @@ import numpy as np
 THRESHOLD = 0.6
 NUM_ITERATIONS = 1000
 
-
+def dlt(A):
+    U, D, V = np.linalg.svd(A)
+    P = V[11, :]
+    P = (np.reshape(P, (3, 4)))
+    ### P is the projection matrix
+    P = P / P[2, 3]
+    return P
 def compute_homography(pairs):
     A = []
+    B = []
     for x1, y1, x2, y2 in pairs:
         A.append([x1, y1, 1, 0, 0, 0, -x2 * x1, -x2 * y1, -x2])
         A.append([0, 0, 0, x1, y1, 1, -y2 * x1, -y2 * y1, -y2])
+
+        x, y, z = x1, y1, 0
+        u, v = x2, y2
+
+        B.append([x, y, z, 1, 0, 0, 0, 0, -u * x, -u * y, -u * z, -u])
+        B.append([0, 0, 0, 0, x, y, z, 1, -v * x, -v * y, -v * z, -v])
     A = np.array(A)
+
 
     # Singular Value Decomposition (SVD)
     U, S, V = np.linalg.svd(A)
@@ -24,7 +38,9 @@ def compute_homography(pairs):
 
     # Normalization
     H = (1 / H.item(8)) * H
-    return H
+
+    ddd = dlt(np.array(B))
+    return ddd
 
 
 def error(pair, H):
@@ -37,16 +53,35 @@ def error(pair, H):
     return np.linalg.norm(np.transpose(p2) - p2_estimate)
 
 
+# Finding Projection Matrix using DLT
+def projection_matrix_estimation(img_pts, world_pts):
+    n = world_pts.shape[0]
+    A = np.zeros((2 * n, 12))
+    for i in range(n):
+        A[i * 2, 0:4] = -1 * world_pts[i, :]
+        A[i * 2, 8:12] = img_pts[i, 0] * world_pts[i, :]
+        A[i * 2 + 1, 4:8] = -1 * world_pts[i, :]
+        A[i * 2 + 1, 8:12] = img_pts[i, 1] * world_pts[i, :]
+
+    U, D, V = np.linalg.svd(A)
+    P = V[11, :]
+    P = (np.reshape(P, (3, 4)))
+    P = P / P[2, 3]
+    return P
+
+
 def ransac(point_map, threshold=THRESHOLD):
     print(f"Running RANSAC with {len(point_map)} points...")
     best_pairs = set()
     homography = None
     for i in range(NUM_ITERATIONS):
         # randomly choose 4 points from the matrix to compute the homography
-        pairs = [point_map[i] for i in np.random.choice(len(point_map), 4)]
+        pairs = [point_map[i] for i in np.random.choice(len(point_map), 6)]
 
         H = compute_homography(pairs)
-        matched_pair = {(c[0], c[1], c[2], c[3]) for c in point_map if error(c, H) < 200}
+        matched_pair = {
+            (c[0], c[1], c[2], c[3]) for c in point_map if error(c, H) < 200
+        }
 
         print(
             f"\x1b[2K\r└──> iteration {i + 1}/{NUM_ITERATIONS} "

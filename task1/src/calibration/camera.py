@@ -12,7 +12,7 @@ __reference__ = [
 CHECKERBOARD = (7, 7)
 MIN_POINTS = 50
 RECORD = True
-DATA = r""
+DATA = r"/home/palnak/Workspace/Studium/msc/sem3/assignment/AR/task1/data/imagesForCalibration"
 
 
 def obj3d():
@@ -39,6 +39,8 @@ def generate_parameters_for_calibration():
     object_p3d = obj3d()
 
     for file in os.listdir(DATA):
+        print(f"PROCESSING {file}")
+
         fp = os.path.join(DATA, file)
         image = cv2.imread(fp)
         img_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
