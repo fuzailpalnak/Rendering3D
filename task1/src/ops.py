@@ -23,12 +23,6 @@ def compute_homography(pairs):
     for x1, y1, x2, y2 in pairs:
         A.append([x1, y1, 1, 0, 0, 0, -x2 * x1, -x2 * y1, -x2])
         A.append([0, 0, 0, x1, y1, 1, -y2 * x1, -y2 * y1, -y2])
-
-        x, y, z = x1, y1, 0
-        u, v = x2, y2
-
-        B.append([x, y, z, 1, 0, 0, 0, 0, -u * x, -u * y, -u * z, -u])
-        B.append([0, 0, 0, 0, x, y, z, 1, -v * x, -v * y, -v * z, -v])
     A = np.array(A)
 
     # Singular Value Decomposition (SVD)
@@ -41,8 +35,7 @@ def compute_homography(pairs):
     # Normalization
     H = (1 / H.item(8)) * H
 
-    ddd = dlt(np.array(B))
-    return ddd
+    return H
 
 
 def error(pair, H):
@@ -108,11 +101,22 @@ def ransac(point_map, threshold=THRESHOLD):
 
 
 def find_features(img: np.ndarray):
-    sift = cv2.ORB_create()
+    sift = cv2.xfeatures2d.SIFT_create()
     key_points, descriptors = sift.detectAndCompute(img, None)
     return key_points, descriptors
 
 
 def match_features(desc1, desc2):
-    matches = cv2.BFMatcher(cv2.NORM_HAMMING, True).match(desc1, desc2)
+    # FLANN parameters: Fast Library for Approximate Nearest Neighbor
+    FLANN_INDEX_KDTREE = 0
+    index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
+    search_params = dict(checks=50)
+    flann = cv2.FlannBasedMatcher(index_params, search_params)
+
+    # K=2 => get 2 Nearest Neighbors which is then filtered out after applying a ratio test
+    # This filters out around 90% of false matches
+    # (Learning OpenCV 3 Computer Vision with Python By Joe Minichino, Joseph Howse)
+    matches = flann.knnMatch(desc1, desc2, k=2)
+
+    # matches = cv2.BFMatcher(cv2.NORM_L2, True).match(desc1, desc2)
     return matches

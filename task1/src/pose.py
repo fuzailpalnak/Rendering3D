@@ -21,7 +21,7 @@ if not os.path.exists(MP):
     os.makedirs(MP)
 
 DEBUG = True
-NUM_ITERATIONS = 2000
+NUM_ITERATIONS = 1000
 
 
 WEBCAM_INTRINSIC = np.array([[800.0, 0.0, 320.0], [0.0, 800.0, 240.0], [0.0, 0.0, 1.0]])
@@ -48,9 +48,11 @@ def project_wc_on_ic(projection_matrix, wc):
 
 def projection_error(projection_matrix, ic, wc):
     projected_points = project_wc_on_ic(projection_matrix, wc)
-    return np.abs(projected_points[0] - ic[0, 0]) + np.abs(
-        projected_points[1] - ic[0, 1]
-    )
+    # return np.abs(projected_points[0] - ic[0, 0]) + np.abs(
+    #     projected_points[1] - ic[0, 1]
+    # )
+    return np.linalg.norm(np.transpose(ic) - projected_points[..., np.newaxis])
+    # return np.sqrt(np.mean(np.sum((projected_points[np.newaxis][0:2, :].T - ic) ** 2, 1)))
 
 
 def projection_matrix_estimation(img_pts, world_pts):
@@ -84,7 +86,7 @@ def dlt_ransac(point_map, threshold=0.6):
             np.array(pairs)[:, 2:], np.c_[np.array(pairs)[:, 0:2], np.zeros(len(pairs))]
         )
         if np.all(np.isnan(pm) == False):
-            remaining_pairs = point_map[remaining_points]
+            remaining_pairs = point_map[points_range]
             wc = np.c_[
                 np.array(remaining_pairs)[:, 0:2],
                 np.zeros(len(remaining_pairs)),
@@ -98,7 +100,7 @@ def dlt_ransac(point_map, threshold=0.6):
                 _ic = ic[it]
 
                 pe = projection_error(pm, _ic[np.newaxis], _wc[np.newaxis])
-                if pe < 10:
+                if pe < 20:
                     matched_pair.add((_wc[0], _wc[1], _ic[0], _ic[1]))
 
             print(
@@ -204,4 +206,4 @@ def run(pth: Union[str, int] = 0):
             break
 
 
-run(r"/home/palnak/surface_demo.webm")
+# run(r"/home/palnak/surface_demo.webm")

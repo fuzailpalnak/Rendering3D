@@ -4,10 +4,11 @@ import math
 import matplotlib.pyplot as plt
 
 # Load reference image and convert it to gray scale
+from task1.src.ops import ransac
 from task1.src.pose import dlt_ransac
-from task1.src.util import draw_pairs
+from task1.src.util import draw_pairs, draw_key_points
 
-referenceImage = cv2.imread(r"/home/palnak/st1.jpg", 0)
+referenceImage = cv2.imread(r"C:\Users\Fuzail.Palnak\Downloads\referenceImage.jpg", 0)
 
 
 class OBJ:
@@ -64,7 +65,7 @@ plt.imshow(referenceImage, cmap="gray")
 plt.show()
 
 # Load the source image and convert it to gray scale
-sourceImage = cv2.imread(r"/home/palnak/Workspace/Studium/msc/sem3/assignment/AR/task1/data/source_test.jpg", 0)
+sourceImage = cv2.imread(r"C:\Users\Fuzail.Palnak\Downloads\sourceImage_04.jpg", 0)
 
 # Show image
 plt.imshow(sourceImage, cmap="gray")
@@ -163,14 +164,28 @@ destinationPoints = np.float32(
 ).reshape(-1, 1, 2)
 homography, mask = cv2.findHomography(sourcePoints, destinationPoints, cv2.RANSAC, 5.0)
 
-pm1 = projection_matrix(camera_parameters, homography)
+matchesMask = mask.ravel().tolist()
 
-pairs_img = draw_pairs(sourceImage.copy(), point_map, matched_pairs)
+drawParameters = dict(matchColor=(0, 255, 0), singlePointColor=None,
+                      matchesMask=matchesMask, flags=2)
+result = cv2.drawMatches(referenceImage, referenceImagePts, sourceImage,
+                         sourceImagePts, matches, None, **drawParameters)
+
 plt.figure(figsize=(12, 6))
-plt.imshow(pairs_img, cmap="gray")
+plt.imshow(result, cmap='gray')
 plt.show()
 
-obj = OBJ(r"/home/palnak/Workspace/Studium/msc/sem3/assignment/AR/task1/data/chair.obj", swapyz=True)
+homo, _ = ransac(point_map)
+pm1 = projection_matrix(camera_parameters, homo)
+
+mapping_img = draw_key_points(
+    referenceImage, sourceImage.copy(), list(matched_pairs), pairs=matched_pairs
+)
+plt.figure(figsize=(12, 6))
+plt.imshow(mapping_img, cmap="gray")
+plt.show()
+
+obj = OBJ(r"C:\Users\Fuzail.Palnak\UHD\openSource\AR\chair.obj", swapyz=True)
 
 # project cube or model
 def render(img, obj, projection, dlt, model, color=False):
@@ -183,27 +198,51 @@ def render(img, obj, projection, dlt, model, color=False):
         face_vertices = face[0]
         points = np.array([vertices[vertex - 1] for vertex in face_vertices])
         points = np.dot(points, scale_matrix)
+
+        objp = np.zeros((6 * 7, 3), np.float32)
+        objp[:, :2] = np.mgrid[0:7, 0:6].T.reshape(-1, 2)
+
         # render model in the middle of the reference surface. To do so,
         # model points must be displaced
-        points = np.array([[p[0] + w / 2, p[1] + h / 2, p[2]] for p in points])
+        # points = np.array([[p[0] + w / 2, p[1] + h / 2, p[2]] for p in points])
+
+        points = 20 * np.float32([[0,0,0], [0,3,0], [3,3,0], [3,0,0],
+                   [0,0,-3],[0,3,-3],[3,3,-3],[3,0,-3] ])
+        # points = np.array([[p[0] + w / 2, p[1] + h / 2, p[2]] for p in points])
 
         pp = np.c_[points, np.ones(len(points))]
-        uv2 = np.dot(dlt, pp.T)
-        uv2 = uv2 / uv2[2, :]
-
+        # uv2 = np.dot(dlt, pp.T)
+        # uv2 = uv2 / uv2[2, :]
+        #
         projections = np.zeros((points.shape[0], 3))
         for i in range(points.shape[0]):
             projections[i, :] = np.matmul(dlt, np.transpose(pp[i, :]))
             projections[i, :] = projections[i, :] / projections[i, 2]
 
-        dst = cv2.perspectiveTransform(points.reshape(-1, 1, 3), dlt)
-        imgpts = np.int32(dst)
+        imgpts = []
+        for aa in projections:
+            imgpts.append([int(aa[0]), int(aa[1])])
+        imgpts = np.int32(np.array(imgpts)).reshape(-1, 2)
 
-        cv2.fillConvexPoly(img, imgpts, (80, 27, 211))
+        # dst = cv2.perspectiveTransform(points.reshape(-1, 1, 3), projection)
+        # imgpts = np.int32(dst).reshape(-1, 2)
+
+        # draw ground floor in green
+        img = cv2.drawContours(img, [imgpts[:4]], -1, (0, 255, 0), -3)
+        # draw pillars in blue color
+        for i, j in zip(range(4), range(4, 8)):
+            img = cv2.line(img, tuple(imgpts[i]), tuple(imgpts[j]), (255, 0, 0), 3)
+        # draw top layer in red color
+        img = cv2.drawContours(img, [imgpts[4:]], -1, (0, 0, 255), 3)
+
+
+
+        # cv2.fillConvexPoly(img, imgpts, (80, 27, 211))
+        return img
     return img
 
 
-frame = render(sourceImage, obj, pm1, pm, referenceImage, False)
+frame = render(cv2.imread(r"C:\Users\Fuzail.Palnak\Downloads\sourceImage_04.jpg"), obj, pm1, pm, referenceImage, False)
 plt.figure(figsize=(12, 6))
 plt.imshow(frame, cmap="gray")
 plt.show()
