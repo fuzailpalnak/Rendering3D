@@ -9,7 +9,7 @@ import numpy as np
 from task1.src.util import draw_pairs, draw_key_points
 from task1.src.ops import ransac, find_features, match_features
 
-MODEL_IMAGE = r"/home/palnak/st1.jpg"
+MODEL_IMAGE = r"/home/palnak/Workspace/Studium/msc/sem3/assignment/AR/task1/data/wetransfer_img_3449-mov_2022-11-08_2048/image00001.jpeg"
 MP = r"../output/matches"
 KP = r"../output/keypoints"
 
@@ -86,7 +86,7 @@ def dlt_ransac(point_map, threshold=0.6):
             np.array(pairs)[:, 2:], np.c_[np.array(pairs)[:, 0:2], np.zeros(len(pairs))]
         )
         if np.all(np.isnan(pm) == False):
-            remaining_pairs = point_map[points_range]
+            remaining_pairs = point_map[remaining_points]
             wc = np.c_[
                 np.array(remaining_pairs)[:, 0:2],
                 np.zeros(len(remaining_pairs)),
@@ -140,19 +140,20 @@ def run(pth: Union[str, int] = 0):
 
     i = 0
     model_image = cv2.imread(MODEL_IMAGE)
-    # model_image = cv2.cvtColor(model_image, cv2.COLOR_BGR2GRAY)
+    model_image = cv2.cvtColor(model_image, cv2.COLOR_BGR2GRAY)
 
     while cap.isOpened():
         print(f"\x1b[2K\r└──> Frame {i + 1}", end="")
         _, frame = cap.read()
-        # cv2.imwrite("source_test.jpg", frame)
+        # cv2.imwrite("source_test_1.jpg", frame)
         frame_rgb = frame.copy()
 
-        # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        # frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+        # frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
 
         h, w = frame.shape[0:2]
         model_image = cv2.resize(model_image, (w, h), interpolation=cv2.INTER_AREA)
-        # model_image = cv2.rotate(model_image, cv2.ROTATE_90_CLOCKWISE)
         model_image_key_points, model_image_desc = find_features(model_image)
 
         # INTEREST POINT DETECTION
@@ -201,9 +202,39 @@ def run(pth: Union[str, int] = 0):
 
             frame = mapping_img
 
-        cv2.imshow("img", frame)
+
+        points = 20 * np.float32([[0,0,0], [0,3,0], [3,3,0], [3,0,0],
+                   [0,0,-3],[0,3,-3],[3,3,-3],[3,0,-3] ])
+        # points = np.array([[p[0] + w / 2, p[1] + h / 2, p[2]] for p in points])
+
+        pp = np.c_[points, np.ones(len(points))]
+        # uv2 = np.dot(dlt, pp.T)
+        # uv2 = uv2 / uv2[2, :]
+        #
+        projections = np.zeros((points.shape[0], 3))
+        for i in range(points.shape[0]):
+            projections[i, :] = np.matmul(pm, np.transpose(pp[i, :]))
+            projections[i, :] = projections[i, :] / projections[i, 2]
+
+        imgpts = []
+        for aa in projections:
+            imgpts.append([int(aa[0]), int(aa[1])])
+        imgpts = np.int32(np.array(imgpts)).reshape(-1, 2)
+
+        # dst = cv2.perspectiveTransform(points.reshape(-1, 1, 3), projection)
+        # imgpts = np.int32(dst).reshape(-1, 2)
+
+        # draw ground floor in green
+        img = cv2.drawContours(frame_rgb, [imgpts[:4]], -1, (0, 255, 0), -3)
+        # draw pillars in blue color
+        for i, j in zip(range(4), range(4, 8)):
+            img = cv2.line(img, tuple(imgpts[i]), tuple(imgpts[j]), (255, 0, 0), 3)
+        # draw top layer in red color
+        img = cv2.drawContours(img, [imgpts[4:]], -1, (0, 0, 255), 3)
+
+        cv2.imshow("img", frame_rgb)
         if cv2.waitKey(1) == 27:
             break
 
 
-# run(r"/home/palnak/surface_demo.webm")
+run(r"/home/palnak/Workspace/Studium/msc/sem3/assignment/AR/task1/data/wetransfer_img_3449-mov_2022-11-08_2048/IMG_3449.MOV")

@@ -8,7 +8,7 @@ from task1.src.ops import ransac
 from task1.src.pose import dlt_ransac
 from task1.src.util import draw_pairs, draw_key_points
 
-referenceImage = cv2.imread(r"C:\Users\Fuzail.Palnak\Downloads\referenceImage.jpg", 0)
+referenceImage = cv2.imread(r"/home/palnak/Workspace/Studium/msc/sem3/assignment/AR/task1/data/wetransfer_img_3449-mov_2022-11-08_2048/image00001.jpeg", 0)
 
 
 class OBJ:
@@ -65,7 +65,7 @@ plt.imshow(referenceImage, cmap="gray")
 plt.show()
 
 # Load the source image and convert it to gray scale
-sourceImage = cv2.imread(r"C:\Users\Fuzail.Palnak\Downloads\sourceImage_04.jpg", 0)
+sourceImage = cv2.imread(r"/home/palnak/Workspace/Studium/msc/sem3/assignment/AR/task1/data/source_test_1.jpg", 0)
 
 # Show image
 plt.imshow(sourceImage, cmap="gray")
@@ -185,7 +185,7 @@ plt.figure(figsize=(12, 6))
 plt.imshow(mapping_img, cmap="gray")
 plt.show()
 
-obj = OBJ(r"C:\Users\Fuzail.Palnak\UHD\openSource\AR\chair.obj", swapyz=True)
+obj = OBJ(r"/home/palnak/Workspace/Studium/msc/sem3/assignment/AR/task1/data/chair.obj", swapyz=True)
 
 # project cube or model
 def render(img, obj, projection, dlt, model, color=False):
@@ -242,7 +242,7 @@ def render(img, obj, projection, dlt, model, color=False):
     return img
 
 
-frame = render(cv2.imread(r"C:\Users\Fuzail.Palnak\Downloads\sourceImage_04.jpg"), obj, pm1, pm, referenceImage, False)
+frame = render(cv2.imread(r"/home/palnak/Workspace/Studium/msc/sem3/assignment/AR/task1/data/source_test_1.jpg"), obj, pm1, pm, referenceImage, False)
 plt.figure(figsize=(12, 6))
 plt.imshow(frame, cmap="gray")
 plt.show()

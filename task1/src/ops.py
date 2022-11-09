@@ -116,7 +116,7 @@ def match_features(desc1, desc2):
     # K=2 => get 2 Nearest Neighbors which is then filtered out after applying a ratio test
     # This filters out around 90% of false matches
     # (Learning OpenCV 3 Computer Vision with Python By Joe Minichino, Joseph Howse)
-    matches = flann.knnMatch(desc1, desc2, k=2)
+    # matches = flann.knnMatch(desc1, desc2, k=2)
 
-    # matches = cv2.BFMatcher(cv2.NORM_L2, True).match(desc1, desc2)
+    matches = cv2.BFMatcher(cv2.NORM_L2, True).match(desc1, desc2)
     return matches
