@@ -303,7 +303,7 @@ print("Projection Center is:")
 print(T)
 
 ### Estimating P matrix with RANSAC Algorithm
-P_best = RANSAC(image_pts, world_pts)
+P_best, _ = RANSAC(image_pts, world_pts)
 print("Projection Matrix after RANSAC is:")
 print(P_best)
 R_best, K_best, T_best = DLT_algorithm(P_best)
@@ -322,6 +322,34 @@ for i in range(image_pts.shape[0]):
 ppp = []
 for aa in projections:
     ppp.append([int(aa[0]), int(aa[1])])
+
+points = 50000 * np.float32([[0, 0, 0], [0, 3, 0], [3, 3, 0], [3, 0, 0],
+                         [0, 0, -3], [0, 3, -3], [3, 3, -3], [3, 0, -3]])
+
+pp = np.c_[points, np.ones(len(points))]
+# uv2 = np.dot(dlt, pp.T)
+# uv2 = uv2 / uv2[2, :]
+#
+projections = np.zeros((points.shape[0], 3))
+for i in range(points.shape[0]):
+    projections[i, :] = np.matmul(P_best, np.transpose(pp[i, :]))
+    projections[i, :] = projections[i, :] / projections[i, 2]
+
+imgpts = []
+for aa in projections:
+    imgpts.append([int(aa[0]), int(aa[1])])
+imgpts = np.int32(np.array(imgpts)).reshape(-1, 2)
+
+# dst = cv2.perspectiveTransform(points.reshape(-1, 1, 3), projection)
+# imgpts = np.int32(dst).reshape(-1, 2)
+
+# draw ground floor in green
+img = cv2.drawContours(I.copy(), [imgpts[:4]], -1, (0, 255, 0), -3)
+# draw pillars in blue color
+for i, j in zip(range(4), range(4, 8)):
+    img = cv2.line(img, tuple(imgpts[i]), tuple(imgpts[j]), (255, 0, 0), 3)
+# draw top layer in red color
+img = cv2.drawContours(img, [imgpts[4:]], -1, (0, 0, 255), 3)
 
 ### Plotting the reconstructed and original points
 reprojected_image = I.copy()

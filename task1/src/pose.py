@@ -9,7 +9,7 @@ import numpy as np
 from task1.src.util import draw_pairs, draw_key_points
 from task1.src.ops import ransac, find_features, match_features
 
-MODEL_IMAGE = r"/home/palnak/Workspace/Studium/msc/sem3/assignment/AR/task1/data/wetransfer_img_3449-mov_2022-11-08_2048/image00001.jpeg"
+MODEL_IMAGE = r"../data/roi_q_1.png"
 MP = r"../output/matches"
 KP = r"../output/keypoints"
 
@@ -28,6 +28,8 @@ WEBCAM_INTRINSIC = np.array([[800.0, 0.0, 320.0], [0.0, 800.0, 240.0], [0.0, 0.0
 WEBCAM_DST = np.array(
     [[-1.38550017e00, 3.99507333e00, -2.90393843e-03, 2.41582743e-02, -4.97242005e00]]
 )
+
+WD = (0.069, 0.04)
 
 
 def decompose_dlt(P):
@@ -48,10 +50,10 @@ def project_wc_on_ic(projection_matrix, wc):
 
 def projection_error(projection_matrix, ic, wc):
     projected_points = project_wc_on_ic(projection_matrix, wc)
-    # return np.abs(projected_points[0] - ic[0, 0]) + np.abs(
-    #     projected_points[1] - ic[0, 1]
-    # )
-    return np.linalg.norm(np.transpose(ic) - projected_points[..., np.newaxis])
+    return np.abs(projected_points[0] - ic[0, 0]) + np.abs(
+        projected_points[1] - ic[0, 1]
+    )
+    # return np.linalg.norm(np.transpose(ic) - projected_points[..., np.newaxis])
     # return np.sqrt(np.mean(np.sum((projected_points[np.newaxis][0:2, :].T - ic) ** 2, 1)))
 
 
@@ -72,7 +74,11 @@ def projection_matrix_estimation(img_pts, world_pts):
     return P
 
 
-def dlt_ransac(point_map, threshold=0.6):
+def to_wc(wc, scale):
+    return wc * scale
+
+
+def dlt_ransac(point_map, scale, threshold=0.6):
     best_pairs = set()
     best_projection = None
     points_range = list(range(len(point_map)))
@@ -83,12 +89,12 @@ def dlt_ransac(point_map, threshold=0.6):
         pairs = point_map[random_points]
 
         pm = projection_matrix_estimation(
-            np.array(pairs)[:, 2:], np.c_[np.array(pairs)[:, 0:2], np.zeros(len(pairs))]
+            np.array(pairs)[:, 2:], np.c_[np.array(pairs)[:, 0:2] * scale, np.zeros(len(pairs))]
         )
         if np.all(np.isnan(pm) == False):
             remaining_pairs = point_map[remaining_points]
             wc = np.c_[
-                np.array(remaining_pairs)[:, 0:2],
+                np.array(remaining_pairs)[:, 0:2] * scale,
                 np.zeros(len(remaining_pairs)),
                 np.ones(len(remaining_pairs)),
             ]
@@ -100,8 +106,8 @@ def dlt_ransac(point_map, threshold=0.6):
                 _ic = ic[it]
 
                 pe = projection_error(pm, _ic[np.newaxis], _wc[np.newaxis])
-                if pe < 20:
-                    matched_pair.add((_wc[0], _wc[1], _ic[0], _ic[1]))
+                if pe < 10:
+                    matched_pair.add((_wc[0] / scale[0], _wc[1] / scale[1], _ic[0], _ic[1]))
 
             print(
                 f"\x1b[2K\r└──> iteration {i + 1}/{NUM_ITERATIONS} "
@@ -115,8 +121,8 @@ def dlt_ransac(point_map, threshold=0.6):
                 best_pairs = matched_pair
                 best_projection = pm
 
-            # if len(best_pairs) > (len(point_map) * threshold):
-            #     break
+            if len(best_pairs) > (len(point_map) * threshold):
+                break
 
             print(f"\nNum matches: {len(point_map)}")
             print(f"Num inliers: {len(best_pairs)}")
@@ -142,29 +148,42 @@ def run(pth: Union[str, int] = 0):
     model_image = cv2.imread(MODEL_IMAGE)
     model_image = cv2.cvtColor(model_image, cv2.COLOR_BGR2GRAY)
 
+    # model_image_roi = model_image[48: 187, 204:457]
+    # cv2.imwrite("roi.png", model_image_roi)
+    #
+    # q = np.zeros(model_image.shape)
+    # for i in (range(model_image_roi.shape[0])):
+    #     for j in (range(model_image_roi.shape[1])):
+    #         q[i+48][j+187] = model_image_roi[i][j]
+    # #
+    # cv2.imwrite("../data/roi_q_1.png", q)
+
+    h, w = model_image.shape[0:2]
+    scale_width = WD[0] / w
+    scale_height = WD[1] / h
+
     while cap.isOpened():
         print(f"\x1b[2K\r└──> Frame {i + 1}", end="")
         _, frame = cap.read()
         # cv2.imwrite("source_test_1.jpg", frame)
         frame_rgb = frame.copy()
 
+        # frame = cv2.imread("../data/roi_q.png")
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         # frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
         # frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
 
-        h, w = frame.shape[0:2]
-        model_image = cv2.resize(model_image, (w, h), interpolation=cv2.INTER_AREA)
         model_image_key_points, model_image_desc = find_features(model_image)
 
         # INTEREST POINT DETECTION
         f_key_points, f_desc = find_features(frame)
         if DEBUG:
             cv2.imwrite(
-                os.path.join(KP, f"{i}_keypoints-1.png"),
+                os.path.join(KP, f"{i}_model_img_keypoints-1.png"),
                 cv2.drawKeypoints(model_image, model_image_key_points, model_image),
             )
             cv2.imwrite(
-                os.path.join(KP, f"{i}_keypoints-2.png"),
+                os.path.join(KP, f"{i}_frame_keypoints-2.png"),
                 cv2.drawKeypoints(frame.copy(), f_key_points, frame.copy()),
             )
 
@@ -183,10 +202,10 @@ def run(pth: Union[str, int] = 0):
         )
 
         # HOMOGRAPHY ESTIMATION
-        pm, matched_pairs = dlt_ransac(point_map)
-
+        pm, matched_pairs = dlt_ransac(point_map, (scale_width, scale_height))
+        r, k, t = decompose_dlt(pm)
         if DEBUG:
-            pairs_img = draw_pairs(frame.copy(), point_map, matched_pairs)
+            pairs_img = draw_pairs(frame.copy(), list(matched_pairs), matched_pairs)
             cv2.imwrite(
                 os.path.join(MP, f"{str(i)}.png"),
                 pairs_img,
@@ -200,41 +219,55 @@ def run(pth: Union[str, int] = 0):
                 mapping_img,
             )
 
-            frame = mapping_img
+            # frame = mapping_img
 
-
-        points = 20 * np.float32([[0,0,0], [0,3,0], [3,3,0], [3,0,0],
-                   [0,0,-3],[0,3,-3],[3,3,-3],[3,0,-3] ])
-        # points = np.array([[p[0] + w / 2, p[1] + h / 2, p[2]] for p in points])
-
-        pp = np.c_[points, np.ones(len(points))]
-        # uv2 = np.dot(dlt, pp.T)
-        # uv2 = uv2 / uv2[2, :]
+        # points_range = list(range(len(point_map)))
         #
+        # pairs = point_map[points_range]
+        # points = np.c_[np.array(pairs)[:, 0:2] * (scale_width, scale_height), np.zeros(len(pairs))]
+        #
+        points = np.float32([[262, 115, 0], [262, 125, 0], [272, 125, 0], [272, 115, 0],
+                   [262, 115, 0], [262, 125, 0], [272, 125, 0], [272, 115, 0] ])
+        points = np.array(points) * (scale_width, scale_height, 1)
+        # # points = np.array([[(p[0] + w / 2) * WD[0], (p[1] + h / 2) * WD[1], p[2]] for p in points])
+        # #
+        # # imgpts1, jac = cv2.projectPoints(
+        # #     points, r, t, WEBCAM_INTRINSIC, WEBCAM_DST
+        # # )
+        #
+        pp = np.c_[points, np.ones(len(points))]
+        # # uv2 = np.dot(dlt, pp.T)
+        # # uv2 = uv2 / uv2[2, :]
+        # #
         projections = np.zeros((points.shape[0], 3))
-        for i in range(points.shape[0]):
+        for i in range(pp.shape[0]):
             projections[i, :] = np.matmul(pm, np.transpose(pp[i, :]))
             projections[i, :] = projections[i, :] / projections[i, 2]
-
+        #
         imgpts = []
         for aa in projections:
             imgpts.append([int(aa[0]), int(aa[1])])
-        imgpts = np.int32(np.array(imgpts)).reshape(-1, 2)
+        #
+        # frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
+        # for pt in imgpts:
+        #     frame[pt[1] - 2: pt[1] + 2, pt[0] - 2: pt[0] + 2, :] = [255, 0, 0]
+        # cv2.imwrite("frame.png", frame)
+        # imgpts = np.int32(np.array(imgpts)).reshape(-1, 2)
+        #
+        # # dst = cv2.perspectiveTransform(points.reshape(-1, 1, 3), projection)
+        # # imgpts = np.int32(dst).reshape(-1, 2)
+        #
+        # # draw ground floor in green
+        # img = cv2.drawContours(frame_rgb, [imgpts[:4]], -1, (0, 255, 0), -3)
+        # # draw pillars in blue color
+        # for i, j in zip(range(4), range(4, 8)):
+        #     img = cv2.line(img, tuple(imgpts[i]), tuple(imgpts[j]), (255, 0, 0), 3)
+        # # draw top layer in red color
+        # img = cv2.drawContours(img, [imgpts[4:]], -1, (0, 0, 255), 3)
 
-        # dst = cv2.perspectiveTransform(points.reshape(-1, 1, 3), projection)
-        # imgpts = np.int32(dst).reshape(-1, 2)
-
-        # draw ground floor in green
-        img = cv2.drawContours(frame_rgb, [imgpts[:4]], -1, (0, 255, 0), -3)
-        # draw pillars in blue color
-        for i, j in zip(range(4), range(4, 8)):
-            img = cv2.line(img, tuple(imgpts[i]), tuple(imgpts[j]), (255, 0, 0), 3)
-        # draw top layer in red color
-        img = cv2.drawContours(img, [imgpts[4:]], -1, (0, 0, 255), 3)
-
-        cv2.imshow("img", frame_rgb)
+        cv2.imshow("img", mapping_img)
         if cv2.waitKey(1) == 27:
             break
 
 
-run(r"/home/palnak/Workspace/Studium/msc/sem3/assignment/AR/task1/data/wetransfer_img_3449-mov_2022-11-08_2048/IMG_3449.MOV")
+run(r"../data/wetransfer_2022-11-10-131213-jpg_2022-11-10_1222/s1.webm")
