@@ -86,7 +86,7 @@ def RANSAC(img_points, world_points):
 
 ### Main Code Starts here
 ### Reading Image
-I = cv2.imread(r"C:\Users\Fuzail.Palnak\Downloads\IMG_5455.JPG")
+I = cv2.imread(r"/home/palnak/Downloads/IMG_5455.JPG")
 plt.imshow(I)
 plt.title("Original Image")
 plt.show()
@@ -131,7 +131,7 @@ I_pts = [
     [4437, 3614],
 ]
 I_pts = np.asarray(I_pts)
-# I_pts = I_pts[-14:, -14:]
+# I_pts = I_pts[0:14, 0:14]
 ### Definging World Points
 X = [
     216,
@@ -251,6 +251,22 @@ Z = [
 # X = X[0:14]
 # Y = Y[0:14]
 # Z = Z[0:14]
+I_pts_1 = []
+x = []
+y = []
+z = []
+for i in range(len(I_pts)):
+    if Z[i] == 0:
+        x.append(X[i])
+        y.append(Y[i])
+        z.append(Z[i])
+
+        I_pts_1.append(I_pts[i])
+X = x
+Y = y
+Z = z
+
+I_pts = np.array(I_pts_1)
 n = len(I_pts)
 I1 = I.copy()
 for pt in I_pts:
@@ -276,9 +292,12 @@ print("Projection Matrix is given as :")
 print(P)
 
 projections = np.zeros((image_pts.shape[0], 3))
+pm12 = {}
+
 for i in range(image_pts.shape[0]):
     projections[i, :] = np.matmul(P, np.transpose(world_pts[i, :]))
     projections[i, :] = projections[i, :] / projections[i, 2]
+    pm12[i] = [image_pts[i, :], world_pts[i, :]]
 ppp = []
 for aa in projections:
     ppp.append([int(aa[0]), int(aa[1])])
