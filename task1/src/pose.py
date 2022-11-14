@@ -10,10 +10,12 @@ from task1.src.util import draw_pairs, draw_key_points
 from task1.src.ops import find_features, match_features
 
 # MODEL_IMAGE = r"/home/palnak/base.jpg"
-# MODEL_IMAGE = r"../data/surface_test.jpg"
-# MODEL_IMAGE = r"../data/test_source.png"
-MODEL_IMAGE = r"/home/palnak/2022-11-10-131656.jpg"
+MODEL_IMAGE = r"../data/surface_test.jpg"
+# MODEL_IMAGE = r"../data/r_test1.jpeg"
 # MODEL_IMAGE = r"/home/palnak/2022-11-10-131656.jpg"
+# MODEL_IMAGE = r"../data/wetransfer_2022-11-10-131213-jpg_2022-11-10_1222/s1.jpg"
+# MODEL_IMAGE = r"/home/palnak/2022-11-10-131656.jpg"
+# MODEL_IMAGE = r"../data/source_test_final.jpg"
 MP = r"../output/matches"
 KP = r"../output/keypoints"
 
@@ -24,7 +26,7 @@ if not os.path.exists(KP):
 if not os.path.exists(MP):
     os.makedirs(MP)
 
-DEBUG = False
+DEBUG = True
 NUM_ITERATIONS = 2000
 
 
@@ -33,9 +35,10 @@ WEBCAM_DST = np.array(
     [[-1.38550017e00, 3.99507333e00, -2.90393843e-03, 2.41582743e-02, -4.97242005e00]]
 )
 
-WD = (17, 12.7)
-# WD = (9.9, 7)
+# WD = (17, 12.7)
+WD = (9.9, 7)
 # WD = (1, 1)
+# WD = (20.8, 13.6)
 
 
 def normalization(nd, x):
@@ -136,15 +139,11 @@ def projection_matrix_estimation(img_pts, world_pts):
 
 
 def make_wc_with_zeros(wc):
-    return np.c_[
-        wc, np.zeros(len(wc))
-    ]
+    return np.c_[wc, np.zeros(len(wc))]
 
 
 def make_wc_with_ones(wc):
-    return np.c_[
-        wc, np.ones(len(wc))
-    ]
+    return np.c_[wc, np.ones(len(wc))]
 
 
 def dlt_ransac(point_map, scale, threshold=0.6):
@@ -159,12 +158,12 @@ def dlt_ransac(point_map, scale, threshold=0.6):
             random_pairs = point_map[random_points]
             approximation = projection_matrix_estimation(
                 np.array(random_pairs)[:, 2:],
-                make_wc_with_zeros(np.array(random_pairs)[:, 0:2] * scale),
+                make_wc_with_ones(np.array(random_pairs)[:, 0:2] * scale),
             )
             if np.all(np.isnan(approximation) == False):
                 remaining_pairs = point_map[remaining_points]
                 wc = np.c_[
-                    make_wc_with_zeros(np.array(remaining_pairs)[:, 0:2] * scale),
+                    make_wc_with_ones(np.array(remaining_pairs)[:, 0:2] * scale),
                     np.ones(len(remaining_pairs)),
                 ]
                 ic = np.c_[
@@ -184,10 +183,8 @@ def dlt_ransac(point_map, scale, threshold=0.6):
                     best_projection = approximation
                 if len(best_pairs) > (len(point_map) * threshold):
                     break
-        print(
-            f"\x1b[2K\r└──> Best inliers {len(best_pairs)} ",
-            end="",
-        )
+
+        print(f"\t└──>BEST INLIERS {len(best_pairs)}")
         if best_pairs is not None and len(best_pairs) > 6:
             bp = np.array(list(best_pairs))
             best_projection_1 = projection_matrix_estimation(
@@ -195,6 +192,71 @@ def dlt_ransac(point_map, scale, threshold=0.6):
                 make_wc_with_zeros(np.array(bp)[:, 0:2] * scale),
             )
     return best_projection, best_pairs
+
+
+def project_origin(origin_frame, projection_matrix):
+    origin_ic = project_wc_on_ic(
+        wc=np.asarray([0, 0, 1, 1])[np.newaxis], projection_matrix=projection_matrix
+    )[0]
+    origin_frame[
+        int(origin_ic[1]) : int(origin_ic[1]) + 15,
+        int(origin_ic[0]) : int(origin_ic[0]) + 15,
+        :,
+    ] = [0, 255, 0]
+    print(f"\t└──>ORIGIN FOUND AT {origin_ic}")
+    return origin_frame
+
+
+def project_matching_points(origin_frame, point_map, projection_matrix, scale):
+    print(f"\t└──>RE-PROJECTING MATCHING POINTS")
+    points = np.c_[
+        make_wc_with_ones(np.array(point_map)[:, 0:2] * scale),
+        np.ones(len(point_map)),
+    ]
+    ic_pts = project_wc_on_ic(projection_matrix=projection_matrix, wc=points)
+    imgpts = []
+    for aa in ic_pts:
+        imgpts.append([int(aa[0]), int(aa[1])])
+
+    for pt in imgpts:
+        origin_frame[pt[1] - 3 : pt[1] + 3, pt[0] - 3 : pt[0] + 3, :] = [0, 0, 255]
+
+    return origin_frame
+
+
+def project_cube(origin_frame, projection_matrix, scale_width, scale_height):
+    points = np.float32(
+        [
+            [0, 0, 1],
+            [0, 3, 1],
+            [3, 3, 1],
+            [3, 0, 1],
+            [0, 0, 1 + 1e-03],
+            [0, 3, 1 + 1e-03],
+            [3, 3, 1 + 1e-03],
+            [3, 0, 1 + 1e-03],
+        ]
+    ) + [240 * scale_width, 70 * scale_height, 0]
+    points = np.c_[np.array(points), np.ones(len(points))]
+
+    ic_pts = project_wc_on_ic(projection_matrix=projection_matrix, wc=points)
+    img_pts = []
+    for aa in ic_pts:
+        img_pts.append([int(aa[0]), int(aa[1])])
+
+    img_pts = np.int32(np.array(img_pts)).reshape(-1, 2)
+
+    # draw ground floor in green
+    origin_frame = cv2.drawContours(origin_frame, [img_pts[:4]], -1, (0, 255, 0), -3)
+    # draw pillars in blue color
+    for i, j in zip(range(4), range(4, 8)):
+        origin_frame = cv2.line(
+            origin_frame, tuple(img_pts[i]), tuple(img_pts[j]), (255, 0, 0), 3
+        )
+    # draw top layer in red color
+    origin_frame = cv2.drawContours(origin_frame, [img_pts[4:]], -1, (0, 0, 255), 3)
+
+    return origin_frame
 
 
 def run(pth: Union[str, int] = 0):
@@ -218,18 +280,9 @@ def run(pth: Union[str, int] = 0):
     scale_width = WD[0] / w
     scale_height = WD[1] / h
 
-    # model_image_roi = model_image[234:219, 114:433]
-    # cv2.imwrite("roi.png", model_image_roi)
-    #
-    # q = np.zeros(model_image.shape)
-    # for i in (range(model_image_roi.shape[0])):
-    #     for j in (range(model_image_roi.shape[1])):
-    #         q[i+234][j+219] = model_image_roi[i][j]
-    #
-    # cv2.imwrite("../data/roi_q_12.png", q)
-
     while cap.isOpened():
-        print(f"\x1b[2K\r└──> Frame {fc + 1}", end="")
+        print(f"└──>FRAME IN PROGRESS {fc+1}")
+
         _, frame = cap.read()
         # cv2.imwrite("/home/palnak/base.jpg", frame)
         frame = cv2.imread(MODEL_IMAGE)
@@ -271,84 +324,16 @@ def run(pth: Union[str, int] = 0):
             continue
         # r, k, t = decompose_dlt(pm)
 
-        # ORIGIN
-        origin_frame = frame_rgb.copy()
-        origin_ic = project_wc_on_ic(
-            wc=np.asarray([0, 0, 0, 1])[np.newaxis], projection_matrix=pm
-        )[0]
-        origin_frame[
-            int(origin_ic[1]) : int(origin_ic[1]) + 15,
-            int(origin_ic[0]) : int(origin_ic[0]) + 15,
-            :,
-        ] = [0, 255, 0]
-
-        points = np.c_[
-            make_wc_with_zeros(np.array(point_map)[:, 0:2] * (scale_width, scale_height)),
-            np.ones(len(point_map)),
-        ]
-
-        # points = np.float32(
-        #     [
-        #         [245 * scale_width, 75 * scale_height, 0],
-        #         [350 * scale_width, 75 * scale_height, 0],
-        #         [350 * scale_width, 165 * scale_height, 0],
-        #         [245 * scale_width, 165 * scale_height, 0],
-        #         [245 * scale_width, 75 * scale_height, -1e-06],
-        #         [350 * scale_width, 75 * scale_height, -1e-06],
-        #         [350 * scale_width, 165 * scale_height, -1e-06],
-        #         [245 * scale_width, 165 * scale_height, -1e-06]
-        #         # [290 * scale_width, 57 * scale_height, 0],
-        #         # [373 * scale_width, 57 * scale_height, 0],
-        #         # [373 * scale_width, 138 * scale_height, 0],
-        #         # [290 * scale_width, 128 * scale_height, 0],
-        #     ]
-        # )
-
-
-        # points = np.float32(
-        #     [
-        #         [265 * scale_width, 85 * scale_height, 0],
-        #         [345 * scale_width, 85 * scale_height, 0],
-        #         [345 * scale_width, 145 * scale_height, 0],
-        #         [265 * scale_width, 145 * scale_height, 0],
-        #
-        #         [310 * scale_width, 70 * scale_height, 0],
-        #         [370 * scale_width, 70 * scale_height, 0],
-        #         [370 * scale_width, 120 * scale_height, 0],
-        #         [310 * scale_width, 129 * scale_height, 0],
-        #     ]
-        # )
-
-
-
-
-        points = np.float32([[0, 0, 0], [0, 3, 0], [3, 3, 0], [3, 0, 0],
-                    [0, 0, 1], [0, 3, 1], [3, 3, 1], [3, 0, 1]]) + [240 * scale_width, 70 * scale_height, 0]
-        points = np.c_[np.array(points), np.ones(len(points))]
-
-        ic_pts = project_wc_on_ic(projection_matrix=pm, wc=points)
-        imgpts = []
-        for aa in ic_pts:
-            imgpts.append([int(aa[0]), int(aa[1])])
-        # for pt in imgpts:
-        #     frame_rgb[pt[1] - 1: pt[1] + 1, pt[0] - 1: pt[0] + 1, :] = [255, 0, 0]
-        #
-        # frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
-        # for pt in imgpts:
-        #     origin_frame[pt[1] - 3 : pt[1] + 3, pt[0] - 3 : pt[0] + 3, :] = [0, 0, 255]
-        # cv2.imwrite("frame.png", frame)
-        imgpts = np.int32(np.array(imgpts)).reshape(-1, 2)
-
-        # dst = cv2.perspectiveTransform(points.reshape(-1, 1, 3), projection)
-        # imgpts = np.int32(dst).reshape(-1, 2)
-
-        # draw ground floor in green
-        origin_frame = cv2.drawContours(origin_frame, [imgpts[:4]], -1, (0, 255, 0), -3)
-        # draw pillars in blue color
-        for i, j in zip(range(4), range(4, 8)):
-            origin_frame = cv2.line(origin_frame, tuple(imgpts[i]), tuple(imgpts[j]), (255, 0, 0), 3)
-        # draw top layer in red color
-        origin_frame = cv2.drawContours(origin_frame, [imgpts[4:]], -1, (0, 0, 255), 3)
+        origin_frame = project_origin(frame_rgb.copy(), projection_matrix=pm)
+        origin_frame = project_matching_points(
+            origin_frame, point_map, pm, (scale_width, scale_height)
+        )
+        origin_frame = project_cube(
+            origin_frame,
+            projection_matrix=pm,
+            scale_width=scale_width,
+            scale_height=scale_height,
+        )
 
         if DEBUG and len(matched_pairs) > 0:
             pairs_img = draw_pairs(frame.copy(), list(matched_pairs), matched_pairs)
@@ -379,14 +364,16 @@ def run(pth: Union[str, int] = 0):
 
         fc += 1
 
-        cv2.imshow("img", origin_frame)
+        cv2.imshow("img", mapping_img)
         if cv2.waitKey(1) == 27:
             break
 
 
-# run(r"../data/surface_demo.webm")
+run(r"../data/surface_demo.webm")
+
+# run(r"../data/wetransfer_2022-11-10-131213-jpg_2022-11-10_1222/s1.webm")
 # run(0)
-run(r"/home/palnak/2022-11-10-132141.webm")
+# run(r"/home/palnak/2022-11-10-132141.webm")
 # run(r"/home/palnak/2022-11-10-132141.webm")
 # run(r"/home/palnak/swde1.webm")
 # run(r"/home/palnak/2022-11-10-132141.webm")
