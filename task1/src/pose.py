@@ -15,7 +15,7 @@ MODEL_IMAGE = r"/home/palnak/sw1.jpg"
 # MODEL_IMAGE = r"/home/palnak/2022-11-10-131656.jpg"
 # MODEL_IMAGE = r"../data/wetransfer_2022-11-10-131213-jpg_2022-11-10_1222/s1.jpg"
 # MODEL_IMAGE = r"/home/palnak/2022-11-10-131656.jpg"
-# MODEL_IMAGE = r"../data/source_test_final.jpg"
+MODEL_IMAGE = r"../data/wetransfer_image00001-jpeg_2022-11-15_0719/ezgif-frame-005.jpg"
 MP = r"../output/matches"
 KP = r"../output/keypoints"
 
@@ -35,10 +35,11 @@ WEBCAM_DST = np.array(
     [[-1.38550017e00, 3.99507333e00, -2.90393843e-03, 2.41582743e-02, -4.97242005e00]]
 )
 
-WD = (17, 12.7)
+# WD = (17, 12.7)
 # WD = (9.9, 7)
 # WD = (1, 1)
 # WD = (20.8, 13.6)
+WD = (19, 28.8)
 
 
 def normalization(nd, x):
@@ -80,7 +81,7 @@ def decompose_dlt(P):
 
 
 def project_wc_on_ic(projection_matrix, wc):
-    projected_points = np.matmul(projection_matrix, np.transpose(wc))
+    projected_points = projection_matrix@np.transpose(wc)
     projected_points = (
         projected_points
         / projected_points[
@@ -92,10 +93,10 @@ def project_wc_on_ic(projection_matrix, wc):
 
 def projection_error(projection_matrix, ic, wc):
     projected_points = project_wc_on_ic(projection_matrix, wc)
-    return np.abs(projected_points[:, 0] - ic[:, 0]) + np.abs(
-        projected_points[:, 1] - ic[:, 1]
-    )
-    # return np.linalg.norm(ic - projected_points, axis=-1)
+    # return np.abs(projected_points[:, 0] - ic[:, 0]) + np.abs(
+    #     projected_points[:, 1] - ic[:, 1]
+    # )
+    return np.linalg.norm(ic - projected_points, axis=-1)
 
 
 def projection_matrix_estimation(img_pts, world_pts):
@@ -173,24 +174,30 @@ def dlt_ransac(point_map, scale, threshold=0.6):
                 pe1 = projection_error(approximation, ic, wc)
                 matched_pair = np.hstack(
                     [
-                        wc[np.where(pe1 < 10)][:, 0:2] / scale,
-                        ic[np.where(pe1 < 10)][:, 0:2],
+                        wc[np.where(pe1 < 8)][:, 0:2] / scale,
+                        ic[np.where(pe1 < 8)][:, 0:2],
                     ]
                 )
-
                 if len(matched_pair) > len(best_pairs):
                     best_pairs = matched_pair
                     best_projection = approximation
                 if len(best_pairs) > (len(point_map) * threshold):
                     break
 
-        print(f"\t└──>BEST INLIERS {len(best_pairs)}")
-        if best_pairs is not None and len(best_pairs) > 6:
-            bp = np.array(list(best_pairs))
-            best_projection_1 = projection_matrix_estimation(
-                np.array(bp)[:, 2:],
+    if best_pairs is not None and len(best_pairs) > 6:
+        bp = np.array(list(point_map))
+        total_error = projection_error(
+            projection_matrix=best_projection,
+            ic=np.c_[
+                np.array(bp)[:, 2:], np.ones(len(bp))
+            ],
+            wc=np.c_[
                 make_wc_with_zeros(np.array(bp)[:, 0:2] * scale),
-            )
+                np.ones(len(bp)),
+            ],
+        )
+        print(f"\t└──>BEST INLIERS {len(best_pairs)}")
+        print(f"\t\t└──>ERROR {np.mean(total_error)}")
     return best_projection, best_pairs
 
 
@@ -230,15 +237,15 @@ def project_cube(origin_frame, projection_matrix, scale_width, scale_height):
     points = np.float32(
         [
             [0, 0, 0],
-            [0, 3, 0],
-            [3, 3, 0],
-            [3, 0, 0],
-            [0, 0, 0],
-            [0, 3, 0],
-            [3, 3, 0],
-            [3, 0, 0],
+            [0, 1, 0],
+            [1, 1, 0],
+            [1, 0, 0],
+            [0, 0, 1e-01],
+            [0, 1, 1e-01],
+            [1, 1, 1e-01],
+            [1, 0, 1e-01],
         ]
-    ) + [240 * scale_width, 70 * scale_height, 0]
+    ) + [10, 15, 0]
     points = np.c_[np.array(points), np.ones(len(points))]
 
     ic_pts = project_wc_on_ic(projection_matrix=projection_matrix, wc=points)
@@ -287,12 +294,12 @@ def run(pth: Union[str, int] = 0):
         print(f"└──>FRAME IN PROGRESS {fc+1}")
 
         _, frame = cap.read()
-        # cv2.imwrite("/home/palnak/base.jpg", frame)
-        # frame = cv2.imread(MODEL_IMAGE)
+        # cv2.imwrite(r"C:\Users\Fuzail.Palnak\UHD\openSource\AR\task1\data\base_1.jpg", frame)
+        frame = cv2.imread(r"C:\Users\Fuzail.Palnak\UHD\openSource\AR\task1\data\base_1.jpg")
+        # frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+        # frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
         frame_rgb = frame.copy()
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        # frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
-        # frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
 
         # INTEREST POINT DETECTION
         f_key_points, f_desc = find_features(frame)
@@ -329,7 +336,7 @@ def run(pth: Union[str, int] = 0):
 
         origin_frame = project_origin(frame_rgb.copy(), projection_matrix=pm)
         origin_frame = project_matching_points(
-            origin_frame, point_map, pm, (scale_width, scale_height)
+            origin_frame, matched_pairs, pm, (scale_width, scale_height)
         )
         origin_frame = project_cube(
             origin_frame,
@@ -345,7 +352,7 @@ def run(pth: Union[str, int] = 0):
                 pairs_img,
             )
 
-            mapping_img = draw_key_points(
+            origin_frame = draw_key_points(
                 model_image.copy(),
                 origin_frame.copy(),
                 list(matched_pairs),
@@ -353,7 +360,7 @@ def run(pth: Union[str, int] = 0):
             )
             cv2.imwrite(
                 os.path.join(KP, f"{fc}_mapping.png"),
-                mapping_img,
+                origin_frame,
             )
 
             mapping_img_1 = draw_key_points(
@@ -367,7 +374,9 @@ def run(pth: Union[str, int] = 0):
 
         fc += 1
 
-        cv2.imshow("img", mapping_img)
+        # imS = cv2.resize(origin_frame, (960, 540))
+        cv2.imshow("img", origin_frame)
+
         # writer.write(mapping_img)
         if cv2.waitKey(1) == 27:
             print("EXIT")
@@ -376,8 +385,8 @@ def run(pth: Union[str, int] = 0):
             cv2.destroyAllWindows()
 
 
-run(0)
-# run(r"/home/palnak/2022-11-13-172605.webm")
+# run(0)
+run(r"../data/wetransfer_image00001-jpeg_2022-11-15_0719/IMG_3411.MOV")
 
 # run(r"../data/wetransfer_2022-11-10-131213-jpg_2022-11-10_1222/s1.webm")
 # run(0)
