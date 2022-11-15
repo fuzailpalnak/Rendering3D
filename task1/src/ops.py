@@ -19,5 +19,5 @@ def match_features(desc1, desc2):
         if m.distance < 0.75 * n.distance:
             good_matches.append(m)
 
-    # matches = cv2.BFMatcher(cv2.NORM_L2, True).match(desc1, desc2)
+    # good_matches = cv2.BFMatcher(cv2.NORM_L2, True).match(desc1, desc2)
     return good_matches

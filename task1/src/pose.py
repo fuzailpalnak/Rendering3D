@@ -27,7 +27,7 @@ if not os.path.exists(MP):
     os.makedirs(MP)
 
 DEBUG = True
-NUM_ITERATIONS = 2000
+NUM_ITERATIONS = 1000
 
 
 WEBCAM_INTRINSIC = np.array([[800.0, 0.0, 320.0], [0.0, 800.0, 240.0], [0.0, 0.0, 1.0]])
@@ -149,6 +149,7 @@ def make_wc_with_ones(wc):
 
 def dlt_ransac(point_map, scale, threshold=0.6):
     best_pairs = set()
+    best_random_pairs = None
     best_projection = None
 
     if len(point_map) > 6:
@@ -174,17 +175,25 @@ def dlt_ransac(point_map, scale, threshold=0.6):
                 pe1 = projection_error(approximation, ic, wc)
                 matched_pair = np.hstack(
                     [
-                        wc[np.where(pe1 < 8)][:, 0:2] / scale,
-                        ic[np.where(pe1 < 8)][:, 0:2],
+                        wc[np.where(pe1 < 5)][:, 0:2] / scale,
+                        ic[np.where(pe1 < 5)][:, 0:2],
                     ]
                 )
                 if len(matched_pair) > len(best_pairs):
                     best_pairs = matched_pair
                     best_projection = approximation
-                if len(best_pairs) > (len(point_map) * threshold):
-                    break
+                    best_random_pairs = random_pairs
+                    print(f"\t\t└──>ITERATION {i+1}, ERROR {np.mean(pe1)}")
+
+                # if len(best_pairs) > (len(point_map) * threshold):
+                #     break
 
     if best_pairs is not None and len(best_pairs) > 6:
+        # bp = np.vstack([np.array(list(best_pairs)), best_random_pairs])
+        # best_projection = projection_matrix_estimation(
+        #     np.array(bp)[:, 2:],
+        #     make_wc_with_zeros(np.array(bp)[:, 0:2] * scale),
+        # )
         bp = np.array(list(point_map))
         total_error = projection_error(
             projection_matrix=best_projection,
@@ -197,7 +206,7 @@ def dlt_ransac(point_map, scale, threshold=0.6):
             ],
         )
         print(f"\t└──>BEST INLIERS {len(best_pairs)}")
-        print(f"\t\t└──>ERROR {np.mean(total_error)}")
+        print(f"\t\t└──>REFINED ERROR {np.mean(total_error)}")
     return best_projection, best_pairs
 
 
@@ -240,10 +249,10 @@ def project_cube(origin_frame, projection_matrix, scale_width, scale_height):
             [0, 1, 0],
             [1, 1, 0],
             [1, 0, 0],
-            [0, 0, 1e-01],
-            [0, 1, 1e-01],
-            [1, 1, 1e-01],
-            [1, 0, 1e-01],
+            [0, 0, 0],
+            [0, 1, 0],
+            [1, 1, 0],
+            [1, 0, 0],
         ]
     ) + [10, 15, 0]
     points = np.c_[np.array(points), np.ones(len(points))]
