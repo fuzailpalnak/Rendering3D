@@ -10,7 +10,7 @@ from task1.src.util import draw_pairs, draw_key_points
 from task1.src.ops import find_features, match_features
 
 # MODEL_IMAGE = r"/home/palnak/base.jpg"
-MODEL_IMAGE = r"../data/surface_test.jpg"
+MODEL_IMAGE = r"/home/palnak/sw1.jpg"
 # MODEL_IMAGE = r"../data/r_test1.jpeg"
 # MODEL_IMAGE = r"/home/palnak/2022-11-10-131656.jpg"
 # MODEL_IMAGE = r"../data/wetransfer_2022-11-10-131213-jpg_2022-11-10_1222/s1.jpg"
@@ -35,8 +35,8 @@ WEBCAM_DST = np.array(
     [[-1.38550017e00, 3.99507333e00, -2.90393843e-03, 2.41582743e-02, -4.97242005e00]]
 )
 
-# WD = (17, 12.7)
-WD = (9.9, 7)
+WD = (17, 12.7)
+# WD = (9.9, 7)
 # WD = (1, 1)
 # WD = (20.8, 13.6)
 
@@ -158,12 +158,12 @@ def dlt_ransac(point_map, scale, threshold=0.6):
             random_pairs = point_map[random_points]
             approximation = projection_matrix_estimation(
                 np.array(random_pairs)[:, 2:],
-                make_wc_with_ones(np.array(random_pairs)[:, 0:2] * scale),
+                make_wc_with_zeros(np.array(random_pairs)[:, 0:2] * scale),
             )
             if np.all(np.isnan(approximation) == False):
                 remaining_pairs = point_map[remaining_points]
                 wc = np.c_[
-                    make_wc_with_ones(np.array(remaining_pairs)[:, 0:2] * scale),
+                    make_wc_with_zeros(np.array(remaining_pairs)[:, 0:2] * scale),
                     np.ones(len(remaining_pairs)),
                 ]
                 ic = np.c_[
@@ -178,7 +178,7 @@ def dlt_ransac(point_map, scale, threshold=0.6):
                     ]
                 )
 
-                if len(matched_pair) > len(best_pairs) and len(matched_pair) > 6:
+                if len(matched_pair) > len(best_pairs):
                     best_pairs = matched_pair
                     best_projection = approximation
                 if len(best_pairs) > (len(point_map) * threshold):
@@ -196,7 +196,7 @@ def dlt_ransac(point_map, scale, threshold=0.6):
 
 def project_origin(origin_frame, projection_matrix):
     origin_ic = project_wc_on_ic(
-        wc=np.asarray([0, 0, 1, 1])[np.newaxis], projection_matrix=projection_matrix
+        wc=np.asarray([0, 0, 0, 1])[np.newaxis], projection_matrix=projection_matrix
     )[0]
     origin_frame[
         int(origin_ic[1]) : int(origin_ic[1]) + 15,
@@ -210,7 +210,7 @@ def project_origin(origin_frame, projection_matrix):
 def project_matching_points(origin_frame, point_map, projection_matrix, scale):
     print(f"\t└──>RE-PROJECTING MATCHING POINTS")
     points = np.c_[
-        make_wc_with_ones(np.array(point_map)[:, 0:2] * scale),
+        make_wc_with_zeros(np.array(point_map)[:, 0:2] * scale),
         np.ones(len(point_map)),
     ]
     ic_pts = project_wc_on_ic(projection_matrix=projection_matrix, wc=points)
@@ -225,16 +225,18 @@ def project_matching_points(origin_frame, point_map, projection_matrix, scale):
 
 
 def project_cube(origin_frame, projection_matrix, scale_width, scale_height):
+    print(f"\t└──>PROJECTING CUBE")
+
     points = np.float32(
         [
-            [0, 0, 1],
-            [0, 3, 1],
-            [3, 3, 1],
-            [3, 0, 1],
-            [0, 0, 1 + 1e-03],
-            [0, 3, 1 + 1e-03],
-            [3, 3, 1 + 1e-03],
-            [3, 0, 1 + 1e-03],
+            [0, 0, 0],
+            [0, 3, 0],
+            [3, 3, 0],
+            [3, 0, 0],
+            [0, 0, 0],
+            [0, 3, 0],
+            [3, 3, 0],
+            [3, 0, 0],
         ]
     ) + [240 * scale_width, 70 * scale_height, 0]
     points = np.c_[np.array(points), np.ones(len(points))]
@@ -245,6 +247,7 @@ def project_cube(origin_frame, projection_matrix, scale_width, scale_height):
         img_pts.append([int(aa[0]), int(aa[1])])
 
     img_pts = np.int32(np.array(img_pts)).reshape(-1, 2)
+    print(f"\t\t└──>DRAWING CUBE")
 
     # draw ground floor in green
     origin_frame = cv2.drawContours(origin_frame, [img_pts[:4]], -1, (0, 255, 0), -3)
@@ -268,9 +271,9 @@ def run(pth: Union[str, int] = 0):
 
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    # writer = cv2.VideoWriter(
-    #     "pose_estimation.mp4", cv2.VideoWriter_fourcc(*"DIVX"), cap.get(cv2.CAP_PROP_FPS), (width, height)
-    # )
+    writer = cv2.VideoWriter(
+        "pose_estimation.mp4", cv2.VideoWriter_fourcc(*"DIVX"), cap.get(cv2.CAP_PROP_FPS), (width, height)
+    )
 
     fc = 0
     model_image = cv2.imread(MODEL_IMAGE)
@@ -285,7 +288,7 @@ def run(pth: Union[str, int] = 0):
 
         _, frame = cap.read()
         # cv2.imwrite("/home/palnak/base.jpg", frame)
-        frame = cv2.imread(MODEL_IMAGE)
+        # frame = cv2.imread(MODEL_IMAGE)
         frame_rgb = frame.copy()
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         # frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
@@ -365,11 +368,16 @@ def run(pth: Union[str, int] = 0):
         fc += 1
 
         cv2.imshow("img", mapping_img)
+        # writer.write(mapping_img)
         if cv2.waitKey(1) == 27:
-            break
+            print("EXIT")
+            cap.release()
+            writer.release()
+            cv2.destroyAllWindows()
 
 
-run(r"../data/surface_demo.webm")
+run(0)
+# run(r"/home/palnak/2022-11-13-172605.webm")
 
 # run(r"../data/wetransfer_2022-11-10-131213-jpg_2022-11-10_1222/s1.webm")
 # run(0)
