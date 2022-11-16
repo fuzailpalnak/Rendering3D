@@ -10,7 +10,7 @@ from task1.src.util import draw_pairs, draw_key_points
 from task1.src.ops import find_features, match_features
 
 # MODEL_IMAGE = r"/home/palnak/base.jpg"
-MODEL_IMAGE = r"/home/palnak/sw1.jpg"
+# MODEL_IMAGE = r"/home/palnak/sw1.jpg"
 # MODEL_IMAGE = r"../data/r_test1.jpeg"
 # MODEL_IMAGE = r"/home/palnak/2022-11-10-131656.jpg"
 # MODEL_IMAGE = r"../data/wetransfer_2022-11-10-131213-jpg_2022-11-10_1222/s1.jpg"
@@ -26,8 +26,8 @@ if not os.path.exists(KP):
 if not os.path.exists(MP):
     os.makedirs(MP)
 
-DEBUG = True
-NUM_ITERATIONS = 1000
+DEBUG = False
+NUM_ITERATIONS = 5000
 
 
 WEBCAM_INTRINSIC = np.array([[800.0, 0.0, 320.0], [0.0, 800.0, 240.0], [0.0, 0.0, 1.0]])
@@ -42,20 +42,34 @@ WEBCAM_DST = np.array(
 WD = (19, 28.8)
 
 
+def normalize_2d(x):
+    s = np.sqrt(2) / np.sqrt((abs(x - np.mean(x, axis=0)) ** 2)).sum(axis=-1).mean()
+    m = np.mean(x, 0)
+    normalised_points = np.zeros((len(x), 3))
+    Tr = np.array([[s, 0, m[0]], [0, s, m[1]], [0, 0, 1]])
+    for i in range(x.shape[0]):
+        normalised_points[i][0] = s * x[i][0] + (m[0])
+        normalised_points[i][1] = s * x[i][1] + (m[1])
+        normalised_points[i][2] = 1
+    return Tr, normalised_points
+
+
+def normalize_3d(x):
+    s = np.sqrt(2) / np.sqrt((abs(x - np.mean(x, axis=0)) ** 2)).sum(axis=-1).mean()
+    m = np.mean(x, 0)
+    normalised_points = np.zeros((len(x), 4))
+    Tr = np.array([[s, 0, 0, m[0]], [0, s, 0, m[1]], [0, 0, s, m[2]], [0, 0, 0, 1]])
+
+    for i in range(x.shape[0]):
+        normalised_points[i][0] = s * x[i][0] + (m[0])
+        normalised_points[i][1] = s * x[i][1] + (m[1])
+        normalised_points[i][2] = s * x[i][2] + (m[2])
+        normalised_points[i][3] = 1
+
+    return Tr, normalised_points
+
+
 def normalization(nd, x):
-    """
-    Normalization of coordinates (centroid to the origin and mean distance of sqrt(2 or 3).
-
-    Input
-    -----
-    nd: number of dimensions, 3 here
-    x: the data to be normalized (directions at different columns and points at rows)
-    Output
-    ------
-    Tr: the transformation matrix (translation plus scaling)
-    x: the transformed data
-    """
-
     x = np.asarray(x)
     m, s = np.mean(x, 0), np.std(x)
     if nd == 2:
@@ -81,7 +95,7 @@ def decompose_dlt(P):
 
 
 def project_wc_on_ic(projection_matrix, wc):
-    projected_points = projection_matrix@np.transpose(wc)
+    projected_points = projection_matrix @ np.transpose(wc)
     projected_points = (
         projected_points
         / projected_points[
@@ -100,43 +114,21 @@ def projection_error(projection_matrix, ic, wc):
 
 
 def projection_matrix_estimation(img_pts, world_pts):
-
-    Txyz, world_pts1 = normalization(3, world_pts)
-    Tuv, img_pts1 = normalization(2, img_pts)
-
-    # world_pts1 = world_pts
-    # img_pts1 = img_pts
-
     n = world_pts.shape[0]
     A = list()
     for i in range(n):
-        x, y, z = world_pts1[i, 0], world_pts1[i, 1], world_pts1[i, 2]
-        u, v = img_pts1[i, 0], img_pts1[i, 1]
+        x, y, z = world_pts[i, 0], world_pts[i, 1], world_pts[i, 2]
+        u, v = img_pts[i, 0], img_pts[i, 1]
         A.append([-x, -y, -z, -1, 0, 0, 0, 0, u * x, u * y, u * z, u])
         A.append([0, 0, 0, 0, -x, -y, -z, -1, v * x, v * y, v * z, v])
 
     U, D, V = np.linalg.svd(np.asarray(A))
     v_simplified = V[D != 0]
-    # P = (
-    #     V[10, :]
-    #     if np.all(
-    #         V[11, :]
-    #         == np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0])
-    #     )
-    #     else V[11:]
-    # )
     P = v_simplified[-1, :]
     P = np.reshape(P, (3, 4))
-    P = P / P[2, 3]
+    # P = P / P[2, 3]
 
-    H = np.dot(np.dot(np.linalg.pinv(Tuv), P), Txyz)
-    # print(H)
-    H = H / H[-1, -1]
-    # print(H)
-    # L = H.flatten(0)
-    # print(L)
-
-    return H
+    return P
 
 
 def make_wc_with_zeros(wc):
@@ -158,10 +150,25 @@ def dlt_ransac(point_map, scale, threshold=0.6):
             random_points = np.random.choice(len(point_map), 6)
             remaining_points = list(set(points_range) - set(random_points))
             random_pairs = point_map[random_points]
-            approximation = projection_matrix_estimation(
-                np.array(random_pairs)[:, 2:],
-                make_wc_with_zeros(np.array(random_pairs)[:, 0:2] * scale),
+
+            ic = np.array(random_pairs)[:, 2:]
+            wc = np.array(random_pairs)[:, 0:2]
+
+            t_wc, normalized_wc = normalization(3, make_wc_with_zeros(wc * scale))
+            t_ic, normalised_ic = normalization(2, ic)
+
+            # t_wc, normalized_wc = normalize_3d(make_wc_with_zeros(wc * scale))
+            # t_ic, normalised_ic = normalize_2d(ic)
+            approximation_normalized = projection_matrix_estimation(
+                normalised_ic,
+                make_wc_with_zeros(normalized_wc),
             )
+
+            approximation = np.dot(
+                np.dot(np.linalg.pinv(t_ic), approximation_normalized), t_wc
+            )
+            # approximation = approximation / approximation[-1, -1]
+
             if np.all(np.isnan(approximation) == False):
                 remaining_pairs = point_map[remaining_points]
                 wc = np.c_[
@@ -185,8 +192,8 @@ def dlt_ransac(point_map, scale, threshold=0.6):
                     best_random_pairs = random_pairs
                     print(f"\t\t└──>ITERATION {i+1}, ERROR {np.mean(pe1)}")
 
-                # if len(best_pairs) > (len(point_map) * threshold):
-                #     break
+                if len(best_pairs) > (len(point_map) * threshold):
+                    break
 
     if best_pairs is not None and len(best_pairs) > 6:
         # bp = np.vstack([np.array(list(best_pairs)), best_random_pairs])
@@ -197,9 +204,7 @@ def dlt_ransac(point_map, scale, threshold=0.6):
         bp = np.array(list(point_map))
         total_error = projection_error(
             projection_matrix=best_projection,
-            ic=np.c_[
-                np.array(bp)[:, 2:], np.ones(len(bp))
-            ],
+            ic=np.c_[np.array(bp)[:, 2:], np.ones(len(bp))],
             wc=np.c_[
                 make_wc_with_zeros(np.array(bp)[:, 0:2] * scale),
                 np.ones(len(bp)),
@@ -243,18 +248,21 @@ def project_matching_points(origin_frame, point_map, projection_matrix, scale):
 def project_cube(origin_frame, projection_matrix, scale_width, scale_height):
     print(f"\t└──>PROJECTING CUBE")
 
-    points = np.float32(
-        [
-            [0, 0, 0],
-            [0, 1, 0],
-            [1, 1, 0],
-            [1, 0, 0],
-            [0, 0, 0],
-            [0, 1, 0],
-            [1, 1, 0],
-            [1, 0, 0],
-        ]
-    ) + [10, 15, 0]
+    points = (
+        np.float32(
+            [
+                [0, 0, 0],
+                [0, 30, 0],
+                [30, 30, 0],
+                [30, 0, 0],
+                [0, 0, 1],
+                [0, 30, 1],
+                [30, 30, 1],
+                [30, 0, 1],
+            ]
+        )
+        + [350, 650, 0]
+    )
     points = np.c_[np.array(points), np.ones(len(points))]
 
     ic_pts = project_wc_on_ic(projection_matrix=projection_matrix, wc=points)
@@ -287,24 +295,24 @@ def run(pth: Union[str, int] = 0):
 
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    writer = cv2.VideoWriter(
-        "pose_estimation.mp4", cv2.VideoWriter_fourcc(*"DIVX"), cap.get(cv2.CAP_PROP_FPS), (width, height)
-    )
+    # writer = cv2.VideoWriter(
+    #     "pose_estimation.mp4", cv2.VideoWriter_fourcc(*"DIVX"), cap.get(cv2.CAP_PROP_FPS), (width, height)
+    # )
 
     fc = 0
     model_image = cv2.imread(MODEL_IMAGE)
     model_image = cv2.cvtColor(model_image, cv2.COLOR_BGR2GRAY)
     model_image_key_points, model_image_desc = find_features(model_image)
     h, w = model_image.shape[0:2]
-    scale_width = WD[0] / w
-    scale_height = WD[1] / h
+    scale_width = 1  # WD[0] / w
+    scale_height = 1  # WD[1] / h
 
     while cap.isOpened():
         print(f"└──>FRAME IN PROGRESS {fc+1}")
 
         _, frame = cap.read()
         # cv2.imwrite(r"C:\Users\Fuzail.Palnak\UHD\openSource\AR\task1\data\base_1.jpg", frame)
-        frame = cv2.imread(r"C:\Users\Fuzail.Palnak\UHD\openSource\AR\task1\data\base_1.jpg")
+        frame = cv2.imread(r"../data/base_1.jpg")
         # frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
         # frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
         frame_rgb = frame.copy()
@@ -390,7 +398,7 @@ def run(pth: Union[str, int] = 0):
         if cv2.waitKey(1) == 27:
             print("EXIT")
             cap.release()
-            writer.release()
+            # writer.release()
             cv2.destroyAllWindows()
 
 
