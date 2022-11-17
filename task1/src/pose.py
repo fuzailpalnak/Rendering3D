@@ -15,7 +15,9 @@ from task1.src.ops import find_features, match_features
 # MODEL_IMAGE = r"/home/palnak/2022-11-10-131656.jpg"
 # MODEL_IMAGE = r"../data/wetransfer_2022-11-10-131213-jpg_2022-11-10_1222/s1.jpg"
 # MODEL_IMAGE = r"/home/palnak/2022-11-10-131656.jpg"
-MODEL_IMAGE = r"../data/wetransfer_image00001-jpeg_2022-11-15_0719/ezgif-frame-005.jpg"
+MODEL_IMAGE = (
+    r"../data/wetransfer_image00001-jpeg_2022-11-15_0719/ezgif-frame-005-crop.jpg"
+)
 MP = r"../output/matches"
 KP = r"../output/keypoints"
 
@@ -26,8 +28,8 @@ if not os.path.exists(KP):
 if not os.path.exists(MP):
     os.makedirs(MP)
 
-DEBUG = False
-NUM_ITERATIONS = 5000
+DEBUG = True
+NUM_ITERATIONS = 2924
 
 
 WEBCAM_INTRINSIC = np.array([[800.0, 0.0, 320.0], [0.0, 800.0, 240.0], [0.0, 0.0, 1.0]])
@@ -39,7 +41,7 @@ WEBCAM_DST = np.array(
 # WD = (9.9, 7)
 # WD = (1, 1)
 # WD = (20.8, 13.6)
-WD = (19, 28.8)
+WD = (12.2, 19.5)
 
 
 def normalize_2d(x):
@@ -110,6 +112,7 @@ def projection_error(projection_matrix, ic, wc):
     # return np.abs(projected_points[:, 0] - ic[:, 0]) + np.abs(
     #     projected_points[:, 1] - ic[:, 1]
     # )
+    # return np.linalg.norm(ic - projected_points, ord=1, axis=-1)
     return np.linalg.norm(ic - projected_points, axis=-1)
 
 
@@ -119,14 +122,14 @@ def projection_matrix_estimation(img_pts, world_pts):
     for i in range(n):
         x, y, z = world_pts[i, 0], world_pts[i, 1], world_pts[i, 2]
         u, v = img_pts[i, 0], img_pts[i, 1]
-        A.append([-x, -y, -z, -1, 0, 0, 0, 0, u * x, u * y, u * z, u])
-        A.append([0, 0, 0, 0, -x, -y, -z, -1, v * x, v * y, v * z, v])
+        A.append([x, y, z, 1, 0, 0, 0, 0, -u * x, -u * y, -u * z, -u])
+        A.append([0, 0, 0, 0, x, y, z, 1, -v * x, -v * y, -v * z, -v])
 
     U, D, V = np.linalg.svd(np.asarray(A))
     v_simplified = V[D != 0]
     P = v_simplified[-1, :]
     P = np.reshape(P, (3, 4))
-    # P = P / P[2, 3]
+    P = P / P[2, 3]
 
     return P
 
@@ -144,35 +147,37 @@ def dlt_ransac(point_map, scale, threshold=0.6):
     best_random_pairs = None
     best_projection = None
 
-    if len(point_map) > 6:
+    if len(point_map) >= 6:
         points_range = list(range(len(point_map)))
         for i in range(NUM_ITERATIONS):
             random_points = np.random.choice(len(point_map), 6)
             remaining_points = list(set(points_range) - set(random_points))
+
             random_pairs = point_map[random_points]
+            remaining_pairs = point_map[remaining_points]
 
             ic = np.array(random_pairs)[:, 2:]
             wc = np.array(random_pairs)[:, 0:2]
 
-            t_wc, normalized_wc = normalization(3, make_wc_with_zeros(wc * scale))
-            t_ic, normalised_ic = normalization(2, ic)
+            # t_wc, normalized_wc = normalization(3, make_wc_with_zeros(wc * scale))
+            # t_ic, normalised_ic = normalization(2, ic)
 
-            # t_wc, normalized_wc = normalize_3d(make_wc_with_zeros(wc * scale))
-            # t_ic, normalised_ic = normalize_2d(ic)
+            t_wc, normalized_wc = normalize_3d(make_wc_with_ones(wc * scale))
+            t_ic, normalised_ic = normalize_2d(ic)
             approximation_normalized = projection_matrix_estimation(
                 normalised_ic,
-                make_wc_with_zeros(normalized_wc),
+                normalized_wc,
             )
 
+            # approximation = approximation_normalized
             approximation = np.dot(
                 np.dot(np.linalg.pinv(t_ic), approximation_normalized), t_wc
             )
-            # approximation = approximation / approximation[-1, -1]
+            approximation = approximation / approximation[-1, -1]
 
             if np.all(np.isnan(approximation) == False):
-                remaining_pairs = point_map[remaining_points]
                 wc = np.c_[
-                    make_wc_with_zeros(np.array(remaining_pairs)[:, 0:2] * scale),
+                    make_wc_with_ones(np.array(remaining_pairs)[:, 0:2] * scale),
                     np.ones(len(remaining_pairs)),
                 ]
                 ic = np.c_[
@@ -182,8 +187,8 @@ def dlt_ransac(point_map, scale, threshold=0.6):
                 pe1 = projection_error(approximation, ic, wc)
                 matched_pair = np.hstack(
                     [
-                        wc[np.where(pe1 < 5)][:, 0:2] / scale,
-                        ic[np.where(pe1 < 5)][:, 0:2],
+                        wc[np.where(pe1 < 3)][:, 0:2] / scale,
+                        ic[np.where(pe1 < 3)][:, 0:2],
                     ]
                 )
                 if len(matched_pair) > len(best_pairs):
@@ -196,17 +201,25 @@ def dlt_ransac(point_map, scale, threshold=0.6):
                     break
 
     if best_pairs is not None and len(best_pairs) > 6:
-        # bp = np.vstack([np.array(list(best_pairs)), best_random_pairs])
+        # bp =  np.vstack([np.array(list(best_pairs)), best_random_pairs])
+        # t_wc, normalized_wc = normalize_3d(make_wc_with_ones(np.array(bp)[:, 0:2] * scale))
+        # t_ic, normalised_ic = normalize_2d(np.array(bp)[:, 2:])
         # best_projection = projection_matrix_estimation(
-        #     np.array(bp)[:, 2:],
-        #     make_wc_with_zeros(np.array(bp)[:, 0:2] * scale),
+        #     normalised_ic,
+        #     normalized_wc,
         # )
+        #
+        # best_projection = np.dot(
+        #     np.dot(np.linalg.pinv(t_ic), best_projection), t_wc
+        # )
+        # best_projection = best_projection / best_projection[-1, -1]
+
         bp = np.array(list(point_map))
         total_error = projection_error(
             projection_matrix=best_projection,
             ic=np.c_[np.array(bp)[:, 2:], np.ones(len(bp))],
             wc=np.c_[
-                make_wc_with_zeros(np.array(bp)[:, 0:2] * scale),
+                make_wc_with_ones(np.array(bp)[:, 0:2] * scale),
                 np.ones(len(bp)),
             ],
         )
@@ -217,7 +230,7 @@ def dlt_ransac(point_map, scale, threshold=0.6):
 
 def project_origin(origin_frame, projection_matrix):
     origin_ic = project_wc_on_ic(
-        wc=np.asarray([0, 0, 0, 1])[np.newaxis], projection_matrix=projection_matrix
+        wc=np.asarray([0, 0, 1, 1])[np.newaxis], projection_matrix=projection_matrix
     )[0]
     origin_frame[
         int(origin_ic[1]) : int(origin_ic[1]) + 15,
@@ -231,15 +244,15 @@ def project_origin(origin_frame, projection_matrix):
 def project_matching_points(origin_frame, point_map, projection_matrix, scale):
     print(f"\t└──>RE-PROJECTING MATCHING POINTS")
     points = np.c_[
-        make_wc_with_zeros(np.array(point_map)[:, 0:2] * scale),
+        make_wc_with_ones(np.array(point_map)[:, 0:2] * scale),
         np.ones(len(point_map)),
     ]
     ic_pts = project_wc_on_ic(projection_matrix=projection_matrix, wc=points)
-    imgpts = []
+    img_pts = []
     for aa in ic_pts:
-        imgpts.append([int(aa[0]), int(aa[1])])
+        img_pts.append([int(aa[0]), int(aa[1])])
 
-    for pt in imgpts:
+    for pt in img_pts:
         origin_frame[pt[1] - 3 : pt[1] + 3, pt[0] - 3 : pt[0] + 3, :] = [0, 0, 255]
 
     return origin_frame
@@ -251,17 +264,17 @@ def project_cube(origin_frame, projection_matrix, scale_width, scale_height):
     points = (
         np.float32(
             [
-                [0, 0, 0],
-                [0, 30, 0],
-                [30, 30, 0],
-                [30, 0, 0],
                 [0, 0, 1],
-                [0, 30, 1],
-                [30, 30, 1],
-                [30, 0, 1],
+                [0, 1, 1],
+                [1, 1, 1],
+                [1, 0, 1],
+                [0, 0, 2],
+                [0, 1, 2],
+                [1, 1, 2],
+                [1, 0, 2],
             ]
         )
-        + [350, 650, 0]
+        + [350 * scale_width, 650 * scale_height, 0]
     )
     points = np.c_[np.array(points), np.ones(len(points))]
 
@@ -286,7 +299,80 @@ def project_cube(origin_frame, projection_matrix, scale_width, scale_height):
     return origin_frame
 
 
-def run(pth: Union[str, int] = 0):
+def batch(iterable, n=1):
+    l = len(iterable)
+    for ndx in range(0, l, n):
+        my_batch = set(iterable[ndx : min(ndx + n, l)])
+        yield list(my_batch), list(set(iterable) - my_batch)
+
+
+def estimate_projection_matrix(
+    model_image_key_points,
+    model_image_desc,
+    f_key_points,
+    f_desc,
+    scale_width,
+    scale_height,
+):
+    # cv2.imwrite(r"C:\Users\Fuzail.Palnak\UHD\openSource\AR\task1\data\base_1.jpg", frame)
+    # frame = cv2.imread(r"../data/base_1.jpg")
+    # frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+    # frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+
+    # FEATURE MATCHING
+    matches = match_features(model_image_desc, f_desc)
+    # matches = sorted(matches, key=lambda x: x.distance)
+    point_map = np.array(
+        [
+            [
+                model_image_key_points[match.queryIdx].pt[0],
+                model_image_key_points[match.queryIdx].pt[1],
+                f_key_points[match.trainIdx].pt[0],
+                f_key_points[match.trainIdx].pt[1],
+            ]
+            for match in matches
+        ]
+    )
+
+    # DLT
+    pm, matched_pairs = dlt_ransac(point_map, (scale_width, scale_height))
+
+    return pm, matched_pairs
+
+
+def get_data_from_model_image():
+    model_image = cv2.imread(MODEL_IMAGE)
+    model_image = cv2.cvtColor(model_image, cv2.COLOR_BGR2GRAY)
+    model_image_key_points, model_image_desc = find_features(model_image)
+    h, w = model_image.shape[0:2]
+    scale_width = WD[0] / w
+    scale_height = WD[1] / h
+
+    return (
+        model_image,
+        model_image_key_points,
+        model_image_desc,
+        scale_width,
+        scale_height,
+    )
+
+
+def render(img, matched_pairs, projection_matrix, scale_width, scale_height):
+    rendered_frame = project_origin(img.copy(), projection_matrix=projection_matrix)
+    rendered_frame = project_matching_points(
+        rendered_frame, matched_pairs, projection_matrix, (scale_width, scale_height)
+    )
+    rendered_frame = project_cube(
+        rendered_frame,
+        projection_matrix=projection_matrix,
+        scale_width=scale_width,
+        scale_height=scale_height,
+    )
+
+    return rendered_frame
+
+
+def stream(pth: Union[str, int] = 0):
     cap = cv2.VideoCapture(pth)
 
     # Check if the webcam is opened correctly
@@ -300,26 +386,46 @@ def run(pth: Union[str, int] = 0):
     # )
 
     fc = 0
-    model_image = cv2.imread(MODEL_IMAGE)
-    model_image = cv2.cvtColor(model_image, cv2.COLOR_BGR2GRAY)
-    model_image_key_points, model_image_desc = find_features(model_image)
-    h, w = model_image.shape[0:2]
-    scale_width = 1  # WD[0] / w
-    scale_height = 1  # WD[1] / h
+    (
+        model_image,
+        model_image_key_points,
+        model_image_desc,
+        scale_width,
+        scale_height,
+    ) = get_data_from_model_image()
 
     while cap.isOpened():
         print(f"└──>FRAME IN PROGRESS {fc+1}")
 
         _, frame = cap.read()
-        # cv2.imwrite(r"C:\Users\Fuzail.Palnak\UHD\openSource\AR\task1\data\base_1.jpg", frame)
-        frame = cv2.imread(r"../data/base_1.jpg")
-        # frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
-        # frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+        # frame = cv2.imread(r"../data/base_1.jpg")
+        frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+        frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
         frame_rgb = frame.copy()
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
         # INTEREST POINT DETECTION
         f_key_points, f_desc = find_features(frame)
+
+        # GET PROJECTION MATRIX
+        projection_matrix, matched_pairs = estimate_projection_matrix(
+            model_image_key_points,
+            model_image_desc,
+            f_key_points,
+            f_desc,
+            scale_width,
+            scale_height,
+        )
+
+        # RENDER ORIGIN AND CUBE
+        rendered_frame = (
+            render(
+                frame_rgb, matched_pairs, projection_matrix, scale_width, scale_height
+            )
+            if projection_matrix is not None
+            else frame_rgb
+        )
+
         if DEBUG:
             cv2.imwrite(
                 os.path.join(KP, f"{fc}_model_img_keypoints-1.png"),
@@ -332,67 +438,25 @@ def run(pth: Union[str, int] = 0):
                 cv2.drawKeypoints(frame.copy(), f_key_points, frame.copy()),
             )
 
-        # FEATURE MATCHING
-        matches = match_features(model_image_desc, f_desc)
-        matches = sorted(matches, key=lambda x: x.distance)
-        point_map = np.array(
-            [
-                [
-                    model_image_key_points[match.queryIdx].pt[0],
-                    model_image_key_points[match.queryIdx].pt[1],
-                    f_key_points[match.trainIdx].pt[0],
-                    f_key_points[match.trainIdx].pt[1],
-                ]
-                for match in matches
-            ]
-        )
-        pm, matched_pairs = dlt_ransac(point_map, (scale_width, scale_height))
-        if pm is None:
-            continue
-        # r, k, t = decompose_dlt(pm)
-
-        origin_frame = project_origin(frame_rgb.copy(), projection_matrix=pm)
-        origin_frame = project_matching_points(
-            origin_frame, matched_pairs, pm, (scale_width, scale_height)
-        )
-        origin_frame = project_cube(
-            origin_frame,
-            projection_matrix=pm,
-            scale_width=scale_width,
-            scale_height=scale_height,
-        )
-
-        if DEBUG and len(matched_pairs) > 0:
             pairs_img = draw_pairs(frame.copy(), list(matched_pairs), matched_pairs)
             cv2.imwrite(
                 os.path.join(MP, f"{str(fc)}.png"),
                 pairs_img,
             )
 
-            origin_frame = draw_key_points(
+            rendered_frame = draw_key_points(
                 model_image.copy(),
-                origin_frame.copy(),
+                rendered_frame.copy(),
                 list(matched_pairs),
                 pairs=matched_pairs,
             )
             cv2.imwrite(
                 os.path.join(KP, f"{fc}_mapping.png"),
-                origin_frame,
+                rendered_frame,
             )
-
-            mapping_img_1 = draw_key_points(
-                model_image.copy(), frame.copy(), list(point_map), pairs=None
-            )
-
-            cv2.imwrite(
-                os.path.join(KP, f"{fc}_point_map.png"),
-                mapping_img_1,
-            )
-
         fc += 1
-
         # imS = cv2.resize(origin_frame, (960, 540))
-        cv2.imshow("img", origin_frame)
+        cv2.imshow("img", rendered_frame)
 
         # writer.write(mapping_img)
         if cv2.waitKey(1) == 27:
@@ -403,7 +467,7 @@ def run(pth: Union[str, int] = 0):
 
 
 # run(0)
-run(r"../data/wetransfer_image00001-jpeg_2022-11-15_0719/IMG_3411.MOV")
+stream(r"../data/wetransfer_image00001-jpeg_2022-11-15_0719/IMG_3411.MOV")
 
 # run(r"../data/wetransfer_2022-11-10-131213-jpg_2022-11-10_1222/s1.webm")
 # run(0)
@@ -411,3 +475,4 @@ run(r"../data/wetransfer_image00001-jpeg_2022-11-15_0719/IMG_3411.MOV")
 # run(r"/home/palnak/2022-11-10-132141.webm")
 # run(r"/home/palnak/swde1.webm")
 # run(r"/home/palnak/2022-11-10-132141.webm")
+# print(np.log(1-0.99) / (np.log(1 - ((1-0.50) ** 6))) * 10)

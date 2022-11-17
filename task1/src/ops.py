@@ -3,14 +3,15 @@ import numpy as np
 
 
 def find_features(img: np.ndarray):
-    sift = cv2.ORB_create()
+    sift = cv2.SIFT_create()
     key_points, descriptors = sift.detectAndCompute(img, None)
     return key_points, descriptors
 
 
 def match_features(desc1, desc2):
-    index_params = dict(algorithm=6, table_number=6, key_size=12, multi_probe_level=2)
-    search_params = {}
+    FLANN_INDEX_KDTREE = 0
+    index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
+    search_params = dict(checks=50)
     flann = cv2.FlannBasedMatcher(index_params, search_params)
     matches = flann.knnMatch(desc1, desc2, k=2)
 
