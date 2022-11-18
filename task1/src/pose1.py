@@ -11,9 +11,9 @@ from task1.src.ops import find_features, match_features
 
 # MODEL_IMAGE = r"/home/palnak/base.jpg"
 # MODEL_IMAGE = r"/home/palnak/sw1.jpg"
-# MODEL_IMAGE = r"../data/r_test1.jpeg"
+MODEL_IMAGE = r"../data/surface_test.jpg"
 # MODEL_IMAGE = r"/home/palnak/2022-11-10-131656.jpg"
-# MODEL_IMAGE = r"../data/wetransfer_2022-11-10-131213-jpg_2022-11-10_1222/s1.jpg"
+# MODEL_IMAGE = r"../data/wetransfer_2022-11-10-131213-jpg_2022-11-10_1222/s1-crop.jpg"
 # MODEL_IMAGE = r"/home/palnak/2022-11-10-131656.jpg"
 MODEL_IMAGE = (
     r"../data/wetransfer_image00001-jpeg_2022-11-15_0719/ezgif-frame-005-crop.jpg"
@@ -43,6 +43,33 @@ WEBCAM_DST = np.array(
 # WD = (20.8, 13.6)
 WD = (12.2, 19.5)
 WC_Z = 1
+
+
+def get_projection_matrix(camera_parameters, homography):
+    homography = homography * (-1)
+    rot_and_transl = np.dot(np.linalg.inv(camera_parameters), homography)
+    col_1 = rot_and_transl[:, 0]
+    col_2 = rot_and_transl[:, 1]
+    col_3 = rot_and_transl[:, 2]
+
+    # normalise vectors
+    l = math.sqrt(np.linalg.norm(col_1, 2) * np.linalg.norm(col_2, 2))
+    rot_1 = col_1 / l
+    rot_2 = col_2 / l
+    translation = col_3 / l
+
+    # compute the orthonormal basis
+    c = rot_1 + rot_2
+    p = np.cross(rot_1, rot_2)
+    d = np.cross(c, p)
+    rot_1 = np.dot(c / np.linalg.norm(c, 2) + d / np.linalg.norm(d, 2), 1 / math.sqrt(2))
+    rot_2 = np.dot(c / np.linalg.norm(c, 2) - d / np.linalg.norm(d, 2), 1 / math.sqrt(2))
+    rot_3 = np.cross(rot_1, rot_2)
+
+    # finally, compute the 3D projection matrix from the model to the current frame
+    projection = np.stack((rot_1, rot_2, rot_3, translation)).T
+
+    return np.dot(camera_parameters, projection)
 
 
 def calm_before_the_storm(x):
@@ -209,153 +236,35 @@ def project_ic_on_wc(projection_matrix, ic):
 
 def projection_error(projection_matrix, ic, wc):
     projected_points = project_wc_on_ic(projection_matrix, wc)
-    return np.abs(projected_points[:, 0] - ic[:, 0]) + np.abs(
-        projected_points[:, 1] - ic[:, 1]
-    )
+    # return np.abs(projected_points[:, 0] - ic[:, 0]) + np.abs(
+    #     projected_points[:, 1] - ic[:, 1]
+    # )
     # return np.linalg.norm(ic - projected_points, ord=1, axis=-1)
-    # return np.linalg.norm(ic - projected_points, axis=-1)
+    return np.linalg.norm(ic - projected_points, axis=-1)
 
 
-def projection_matrix_estimation(img_pts, world_pts):
+def homography_estimate(img_pts, world_pts):
     n = world_pts.shape[0]
     A = list()
     for i in range(n):
         x, y, z = world_pts[i, 0], world_pts[i, 1], world_pts[i, 2]
         u, v = img_pts[i, 0], img_pts[i, 1]
-        A.append([x, y, z, 1, 0, 0, 0, 0, -u * x, -u * y, -u * z, -u])
-        A.append([0, 0, 0, 0, x, y, z, 1, -v * x, -v * y, -v * z, -v])
+        A.append([x, y, 1, 0, 0, 0, -u * x, -u * y, -u])
+        A.append([0, 0, 0, x, y, 1, -v * x, -v * y, -v])
 
-    U, D, V = np.linalg.svd(np.asarray(A))
-    v_simplified = V[D != 0]
-    P = v_simplified[-1, :]
-    P = np.reshape(P, (3, 4))
-    P = P / P[2, 3]
-
-    return P
-
-
-def homography_estimate(pairs):
-    A = []
-    for x1, y1, x2, y2 in pairs:
-        A.append([x1, y1, 1, 0, 0, 0, -x2 * x1, -x2 * y1, -x2])
-        A.append([0, 0, 0, x1, y1, 1, -y2 * x1, -y2 * y1, -y2])
-    A = np.array(A)
-    # Singular Value Decomposition (SVD)
-    U, S, V = np.linalg.svd(A)
-    # V has shape (9, 9) for any number of input pairs. V[-1] is the eigenvector
-    # of (A^T)A with the smalles eigenvalue. Reshape into 3x3 matrix.
+    try:
+        U, D, V = np.linalg.svd(np.asarray(A))
+    except np.linalg.LinAlgError:
+        print("here")
+    # v_simplified = V[D != 0]
     H = np.reshape(V[-1], (3, 3))
     # Normalization
     H = (1 / H.item(8)) * H
+
     return H
 
 
-def add_z_for_wc(wc):
-    return np.c_[wc, np.zeros(len(wc)) + WC_Z]
-
-
-def dlt_ransac(point_map, scale, threshold=0.2):
-    best_pairs = set()
-    best_random_pairs = None
-    best_projection = None
-
-    if len(point_map) >= 6:
-        points_range = list(range(len(point_map)))
-        for i in range(NUM_ITERATIONS):
-            random_points = np.random.choice(len(point_map), 6)
-            remaining_points = list(set(points_range) - set(random_points))
-
-            random_pairs = point_map[random_points]
-            remaining_pairs = point_map[remaining_points]
-
-            ic = np.array(random_pairs)[:, 2:]
-            wc = np.array(random_pairs)[:, 0:2]
-
-            # t_wc, normalized_wc = normalization(3, add_z_for_wc(wc * scale))
-            # t_ic, normalized_ic = normalization(2, ic)
-            # normalized_wc, t_wc = scale_and_translate_wc(np.c_[make_wc_with_ones(wc * scale), np.ones(len(wc))])
-            # normalized_ic, t_ic = scale_and_translate_ic(np.c_[
-            #         ic, np.ones(len(ic))
-            #     ])
-
-            # tt_wc = calm_before_the_storm(add_z_for_wc(wc * scale))
-            # tt_ic = calm_before_the_storm(ic)
-            #
-            # tt_wc = calm_before_the_storm_1(add_z_for_wc(wc * scale))
-            # tt_ic = calm_before_the_storm_1(ic)
-
-            tt_wc = calm_before_the_storm_2(add_z_for_wc(wc * scale))
-            tt_ic = calm_before_the_storm_2(ic)
-
-            normalized_wcc = (tt_wc@np.c_[add_z_for_wc(wc * scale), np.ones(len(wc))].T).T
-            normalized_icc = (tt_ic@np.c_[ic, np.ones(len(ic))].T).T
-
-            # t_wc, normalized_wc = normalize_3d(add_z_for_wc(wc * scale))
-            # t_ic, normalized_ic = normalize_2d(ic)
-            approximation_normalized = projection_matrix_estimation(
-                normalized_icc,
-                normalized_wcc,
-            )
-
-            # approximation = approximation_normalized
-            approximation = (np.linalg.inv(tt_ic)@approximation_normalized)@tt_wc
-
-            approximation = approximation / approximation[-1, -1]
-
-            if np.all(np.isnan(approximation) == False):
-                wc = np.c_[
-                    add_z_for_wc(np.array(remaining_pairs)[:, 0:2] * scale),
-                    np.ones(len(remaining_pairs)),
-                ]
-                ic = np.c_[
-                    np.array(remaining_pairs)[:, 2:], np.ones(len(remaining_pairs))
-                ]
-
-                pe1 = projection_error(approximation, ic, wc)
-                matched_pair = np.hstack(
-                    [
-                        wc[np.where(pe1 < 3)][:, 0:2] / scale,
-                        ic[np.where(pe1 < 3)][:, 0:2],
-                    ]
-                )
-                if len(matched_pair) > len(best_pairs):
-                    best_pairs = matched_pair
-                    best_projection = approximation
-                    best_random_pairs = random_pairs
-                    print(f"\t\t└──>ITERATION {i+1}, ERROR {np.mean(pe1)}")
-
-                if len(best_pairs) > (len(point_map) * threshold):
-                    break
-
-    if best_pairs is not None and len(best_pairs) > 6:
-        # bp =  np.vstack([np.array(list(best_pairs)), best_random_pairs])
-        # t_wc, normalized_wc = normalize_3d(make_wc_with_ones(np.array(bp)[:, 0:2] * scale))
-        # t_ic, normalised_ic = normalize_2d(np.array(bp)[:, 2:])
-        # best_projection = projection_matrix_estimation(
-        #     normalised_ic,
-        #     normalized_wc,
-        # )
-        #
-        # best_projection = np.dot(
-        #     np.dot(np.linalg.pinv(t_ic), best_projection), t_wc
-        # )
-        # best_projection = best_projection / best_projection[-1, -1]
-
-        bp = np.array(list(point_map))
-        total_error = projection_error(
-            projection_matrix=best_projection,
-            ic=np.c_[np.array(bp)[:, 2:], np.ones(len(bp))],
-            wc=np.c_[
-                add_z_for_wc(np.array(bp)[:, 0:2] * scale),
-                np.ones(len(bp)),
-            ],
-        )
-        print(f"\t└──>BEST INLIERS {len(best_pairs)}")
-        print(f"\t\t└──>REFINED ERROR {np.mean(total_error)}")
-    return best_projection, best_pairs
-
-
-def homography_ransac(point_map, threshold=0.2):
+def homography_ransac(point_map, threshold=0.7):
     best_pairs = set()
     best_random_pairs = None
     best_projection = None
@@ -385,15 +294,16 @@ def homography_ransac(point_map, threshold=0.2):
             # tt_wc = calm_before_the_storm_1(add_z_for_wc(wc * scale))
             # tt_ic = calm_before_the_storm_1(ic)
 
-            tt_wc = calm_before_the_storm_2(wc)
-            tt_ic = calm_before_the_storm_2(ic)
+            tt_wc = calm_before_the_storm(wc)
+            tt_ic = calm_before_the_storm(ic)
 
             normalized_wcc = (tt_wc@np.c_[wc, np.ones(len(wc))].T).T
             normalized_icc = (tt_ic@np.c_[ic, np.ones(len(ic))].T).T
-
+            if np.isinf(np.sum(normalized_icc)):
+                print("here")
             # t_wc, normalized_wc = normalize_3d(add_z_for_wc(wc * scale))
             # t_ic, normalized_ic = normalize_2d(ic)
-            approximation_normalized = projection_matrix_estimation(
+            approximation_normalized = homography_estimate(
                 normalized_icc,
                 normalized_wcc,
             )
@@ -458,7 +368,7 @@ def homography_ransac(point_map, threshold=0.2):
 
 def project_origin(origin_frame, projection_matrix):
     origin_ic = project_wc_on_ic(
-        wc=np.asarray([0, 0, WC_Z, 1])[np.newaxis], projection_matrix=projection_matrix
+        wc=np.asarray([0, 0, 0, 1])[np.newaxis], projection_matrix=projection_matrix
     )[0]
     origin_frame[
         int(origin_ic[1]) : int(origin_ic[1]) + 15,
@@ -469,11 +379,12 @@ def project_origin(origin_frame, projection_matrix):
     return origin_frame
 
 
-def project_matching_points(origin_frame, point_map, projection_matrix, scale):
+def project_matching_points(origin_frame, point_map, projection_matrix):
     print(f"\t└──>RE-PROJECTING MATCHING POINTS")
+    wc = np.array(point_map)[:, 0:2]
     points = np.c_[
-        add_z_for_wc(np.array(point_map)[:, 0:2] * scale),
-        np.ones(len(point_map)),
+        np.c_[wc, np.zeros(len(wc))],
+        np.ones(len(wc)),
     ]
     ic_pts = project_wc_on_ic(projection_matrix=projection_matrix, wc=points)
     img_pts = []
@@ -486,23 +397,23 @@ def project_matching_points(origin_frame, point_map, projection_matrix, scale):
     return origin_frame
 
 
-def project_cube(origin_frame, projection_matrix, scale_width, scale_height):
+def project_cube(origin_frame, projection_matrix):
     print(f"\t└──>PROJECTING CUBE")
 
     points = (
         np.float32(
             [
-                [0, 0, WC_Z],
-                [0, 1, WC_Z],
-                [1, 1, WC_Z],
-                [1, 0, WC_Z],
-                [0, 0, WC_Z + 0.5],
-                [0, 1, WC_Z + 0.5],
-                [1, 1, WC_Z + 0.5],
-                [1, 0, WC_Z + 0.5],
+                [0, 0, 0],
+                [0, 60, 0],
+                [60, 60, 0],
+                [60, 0, 0],
+                [0, 0, -6],
+                [0, 60, -6],
+                [60, 60, -6],
+                [60, 0, -6],
             ]
         )
-        + [220 * scale_width, 320 * scale_height, 0]
+        + [180, 114, 0]
     )
     points = np.c_[np.array(points), np.ones(len(points))]
 
@@ -539,8 +450,6 @@ def estimate_projection_matrix(
     model_image_desc,
     f_key_points,
     f_desc,
-    scale_width,
-    scale_height,
 ):
     # cv2.imwrite(r"C:\Users\Fuzail.Palnak\UHD\openSource\AR\task1\data\base_1.jpg", frame)
     # frame = cv2.imread(r"../data/base_1.jpg")
@@ -563,7 +472,7 @@ def estimate_projection_matrix(
     )
 
     # DLT
-    pm, matched_pairs = dlt_ransac(point_map, (scale_width, scale_height))
+    pm, matched_pairs = homography_ransac(point_map)
 
     return pm, matched_pairs
 
@@ -572,30 +481,22 @@ def get_data_from_model_image():
     model_image = cv2.imread(MODEL_IMAGE)
     model_image = cv2.cvtColor(model_image, cv2.COLOR_BGR2GRAY)
     model_image_key_points, model_image_desc = find_features(model_image)
-    h, w = model_image.shape[0:2]
-    scale_width = WD[0] / w
-    scale_height = WD[1] / h
-
     return (
         model_image,
         model_image_key_points,
         model_image_desc,
-        scale_width,
-        scale_height,
     )
 
 
-def render(img, matched_pairs, projection_matrix, scale_width, scale_height):
+def render(img, matched_pairs, projection_matrix):
     rendered_frame = project_origin(img.copy(), projection_matrix=projection_matrix)
     rendered_frame = project_matching_points(
-        rendered_frame, matched_pairs, projection_matrix, (scale_width, scale_height)
+        rendered_frame, matched_pairs, projection_matrix
     )
-    rendered_frame = project_cube(
-        rendered_frame,
-        projection_matrix=projection_matrix,
-        scale_width=scale_width,
-        scale_height=scale_height,
-    )
+    # rendered_frame = project_cube(
+    #     rendered_frame,
+    #     projection_matrix=projection_matrix
+    # )
 
     return rendered_frame
 
@@ -618,15 +519,13 @@ def stream(pth: Union[str, int] = 0):
         model_image,
         model_image_key_points,
         model_image_desc,
-        scale_width,
-        scale_height,
     ) = get_data_from_model_image()
 
     while cap.isOpened():
         print(f"└──>FRAME IN PROGRESS {fc+1}")
 
         _, frame = cap.read()
-        # frame = cv2.imread(r"../data/base_1.jpg")
+        # frame = cv2.imread(r"../data/test_source.png")
         frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
         frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
         frame_rgb = frame.copy()
@@ -636,23 +535,29 @@ def stream(pth: Union[str, int] = 0):
         f_key_points, f_desc = find_features(frame)
 
         # GET PROJECTION MATRIX
-        projection_matrix, matched_pairs = estimate_projection_matrix(
+        homography_matrix, matched_pairs = estimate_projection_matrix(
             model_image_key_points,
             model_image_desc,
             f_key_points,
             f_desc,
-            scale_width,
-            scale_height,
         )
-
+        pm = get_projection_matrix(WEBCAM_INTRINSIC, homography_matrix)
         # RENDER ORIGIN AND CUBE
         rendered_frame = (
             render(
-                frame_rgb, matched_pairs, projection_matrix, scale_width, scale_height
+                frame_rgb, matched_pairs, pm
             )
-            if projection_matrix is not None
+            if pm is not None
             else frame_rgb
         )
+
+        h, w = model_image.shape
+        pts = np.float32([[0, 0], [0, h - 1], [w - 1, h - 1], [w - 1, 0]]).reshape(
+            -1, 1, 2
+        )
+        # project corners into frame
+        dst = cv2.perspectiveTransform(pts, homography_matrix)
+        rendered_frame = cv2.polylines(rendered_frame.copy(), [np.int32(dst)], True, 255, 3, cv2.LINE_AA)
 
         if DEBUG:
             cv2.imwrite(
@@ -696,8 +601,8 @@ def stream(pth: Union[str, int] = 0):
 
 # run(0)
 stream(r"../data/wetransfer_image00001-jpeg_2022-11-15_0719/IMG_3411.MOV")
-
-# run(r"../data/wetransfer_2022-11-10-131213-jpg_2022-11-10_1222/s1.webm")
+# stream(r"../data/surface_demo.webm")
+# stream(r"../data/wetransfer_2022-11-10-131213-jpg_2022-11-10_1222/s1.webm")
 # run(0)
 # run(r"/home/palnak/2022-11-10-132141.webm")
 # run(r"/home/palnak/2022-11-10-132141.webm")

@@ -256,12 +256,12 @@ x = []
 y = []
 z = []
 for i in range(len(I_pts)):
-    if Z[i] == 0:
-        x.append(X[i])
-        y.append(Y[i])
-        z.append(Z[i])
+    # if Z[i] == 0:
+    x.append(X[i])
+    y.append(Y[i])
+    z.append(Z[i])
 
-        I_pts_1.append(I_pts[i])
+    I_pts_1.append(I_pts[i])
 X = x
 Y = y
 Z = z
@@ -285,226 +285,226 @@ for i in range(n):
 
 image_pts = np.asarray(image_pts)
 world_pts = np.asarray(world_pts)
-
-### Estimating Projection Matrix with all the points
-P = projection_matrix_estimation(image_pts, world_pts)
-print("Projection Matrix is given as :")
-print(P)
-
-projections = np.zeros((image_pts.shape[0], 3))
-pm12 = {}
-
-for i in range(image_pts.shape[0]):
-    projections[i, :] = np.matmul(P, np.transpose(world_pts[i, :]))
-    projections[i, :] = projections[i, :] / projections[i, 2]
-    pm12[i] = [image_pts[i, :], world_pts[i, :]]
-ppp = []
-for aa in projections:
-    ppp.append([int(aa[0]), int(aa[1])])
-
-### Plotting the reconstructed and original points
-reprojected_image = I.copy()
-for pt in I_pts:
-    reprojected_image[pt[1] - 25 : pt[1] + 25, pt[0] - 25 : pt[0] + 25, :] = [0, 0, 255]
-for pt in ppp:
-    reprojected_image[pt[1] - 25 : pt[1] + 25, pt[0] - 25 : pt[0] + 25, :] = [255, 0, 0]
-
-plt.imshow(reprojected_image)
-plt.title("DLT      Blue: Original Points     Red: Reprojected Points")
-plt.show()
-
-R, K, T = DLT_algorithm(P)
-print("Camera Matirx is :")
-print(K)
-print("Rotation Matrix is :")
-print(R)
-print("Projection Center is:")
-print(T)
-
-### Estimating P matrix with RANSAC Algorithm
-P_best, _ = RANSAC(image_pts, world_pts)
-print("Projection Matrix after RANSAC is:")
-print(P_best)
-R_best, K_best, T_best = DLT_algorithm(P_best)
-# print('Camera Matirx is :')
-# print(K_best)
-# print('Rotation Matrix is :')
-# print(R_best)
-# print('Projection Center is:')
-# print(T_best)
-
-### Finding Reprojected Points
-projections = np.zeros((image_pts.shape[0], 3))
-for i in range(image_pts.shape[0]):
-    projections[i, :] = np.matmul(P_best, np.transpose(world_pts[i, :]))
-    projections[i, :] = projections[i, :] / projections[i, 2]
-ppp = []
-for aa in projections:
-    ppp.append([int(aa[0]), int(aa[1])])
-
-# points = 50000 * np.float32(
-#     [
-#         [0, 0, 0],
-#         [0, 3, 0],
-#         [3, 3, 0],
-#         [3, 0, 0],
-#         [0, 0, -3],
-#         [0, 3, -3],
-#         [3, 3, -3],
-#         [3, 0, -3],
-#     ]
+#
+# ### Estimating Projection Matrix with all the points
+# P = projection_matrix_estimation(image_pts, world_pts)
+# print("Projection Matrix is given as :")
+# print(P)
+#
+# projections = np.zeros((image_pts.shape[0], 3))
+# pm12 = {}
+#
+# for i in range(image_pts.shape[0]):
+#     projections[i, :] = np.matmul(P, np.transpose(world_pts[i, :]))
+#     projections[i, :] = projections[i, :] / projections[i, 2]
+#     pm12[i] = [image_pts[i, :], world_pts[i, :]]
+# ppp = []
+# for aa in projections:
+#     ppp.append([int(aa[0]), int(aa[1])])
+#
+# ### Plotting the reconstructed and original points
+# reprojected_image = I.copy()
+# for pt in I_pts:
+#     reprojected_image[pt[1] - 25 : pt[1] + 25, pt[0] - 25 : pt[0] + 25, :] = [0, 0, 255]
+# for pt in ppp:
+#     reprojected_image[pt[1] - 25 : pt[1] + 25, pt[0] - 25 : pt[0] + 25, :] = [255, 0, 0]
+#
+# plt.imshow(reprojected_image)
+# plt.title("DLT      Blue: Original Points     Red: Reprojected Points")
+# plt.show()
+#
+# R, K, T = DLT_algorithm(P)
+# print("Camera Matirx is :")
+# print(K)
+# print("Rotation Matrix is :")
+# print(R)
+# print("Projection Center is:")
+# print(T)
+#
+# ### Estimating P matrix with RANSAC Algorithm
+# P_best, _ = RANSAC(image_pts, world_pts)
+# print("Projection Matrix after RANSAC is:")
+# print(P_best)
+# R_best, K_best, T_best = DLT_algorithm(P_best)
+# # print('Camera Matirx is :')
+# # print(K_best)
+# # print('Rotation Matrix is :')
+# # print(R_best)
+# # print('Projection Center is:')
+# # print(T_best)
+#
+# ### Finding Reprojected Points
+# projections = np.zeros((image_pts.shape[0], 3))
+# for i in range(image_pts.shape[0]):
+#     projections[i, :] = np.matmul(P_best, np.transpose(world_pts[i, :]))
+#     projections[i, :] = projections[i, :] / projections[i, 2]
+# ppp = []
+# for aa in projections:
+#     ppp.append([int(aa[0]), int(aa[1])])
+#
+# # points = 50000 * np.float32(
+# #     [
+# #         [0, 0, 0],
+# #         [0, 3, 0],
+# #         [3, 3, 0],
+# #         [3, 0, 0],
+# #         [0, 0, -3],
+# #         [0, 3, -3],
+# #         [3, 3, -3],
+# #         [3, 0, -3],
+# #     ]
+# # )
+# #
+# # pp = np.c_[points, np.ones(len(points))]
+# # # uv2 = np.dot(dlt, pp.T)
+# # # uv2 = uv2 / uv2[2, :]
+# # #
+# # projections = np.zeros((points.shape[0], 3))
+# # for i in range(points.shape[0]):
+# #     projections[i, :] = np.matmul(P_best, np.transpose(pp[i, :]))
+# #     projections[i, :] = projections[i, :] / projections[i, 2]
+# #
+# # imgpts = []
+# # for aa in projections:
+# #     imgpts.append([int(aa[0]), int(aa[1])])
+# # imgpts = np.int32(np.array(imgpts)).reshape(-1, 2)
+# #
+# # # dst = cv2.perspectiveTransform(points.reshape(-1, 1, 3), projection)
+# # # imgpts = np.int32(dst).reshape(-1, 2)
+# #
+# # # draw ground floor in green
+# # img = cv2.drawContours(I.copy(), [imgpts[:4]], -1, (0, 255, 0), -3)
+# # # draw pillars in blue color
+# # for i, j in zip(range(4), range(4, 8)):
+# #     img = cv2.line(img, tuple(imgpts[i]), tuple(imgpts[j]), (255, 0, 0), 3)
+# # # draw top layer in red color
+# # img = cv2.drawContours(img, [imgpts[4:]], -1, (0, 0, 255), 3)
+#
+# ### Plotting the reconstructed and original points
+# reprojected_image = I.copy()
+# for pt in I_pts:
+#     reprojected_image[pt[1] - 25 : pt[1] + 25, pt[0] - 25 : pt[0] + 25, :] = [0, 0, 255]
+# for pt in ppp:
+#     reprojected_image[pt[1] - 25 : pt[1] + 25, pt[0] - 25 : pt[0] + 25, :] = [255, 0, 0]
+# plt.imshow(reprojected_image)
+# plt.title("RANSAC DLT       Blue: Original Points     Red: Reprojected Points")
+# plt.show()
+#
+# ### Plotting the Origin Point
+# I_origin = I.copy()
+# origin = [0, 0, 0, 1]
+# origin = np.asarray(origin)
+# origin_img = np.zeros((3, 1))
+# origin_img = np.matmul(P_best, origin)
+# origin_img = origin_img / origin_img[2]
+# I_origin[
+#     int(origin_img[1]) - 25 : int(origin_img[1]) + 25,
+#     int(origin_img[0]) - 25 : int(origin_img[0]) + 25,
+#     :,
+# ] = [0, 255, 0]
+# plt.imshow(I_origin)
+# plt.title(
+#     "Green Marker indicates the position of World Point given the Calibration Matrix"
+# )
+# plt.show()
+#
+# ### Plotting the Wireframe on the grid
+# wireframe = I.copy()
+# plt.imshow(wireframe)
+#
+# idx = [6, 13, 19, 25, 30, 35]
+# q = 0
+# for i in range(35):
+#     if i == idx[q]:
+#         q = q + 1
+#         continue
+#     plt.plot([ppp[i][0], ppp[i + 1][0]], [ppp[i][1], ppp[i + 1][1]], "go-")
+# plt.plot([ppp[0][0], ppp[6][0]], [ppp[0][1], ppp[6][1]], "go-")
+# order = [
+#     0,
+#     7,
+#     -1,
+#     1,
+#     8,
+#     14,
+#     20,
+#     -1,
+#     2,
+#     9,
+#     15,
+#     21,
+#     26,
+#     31,
+#     -1,
+#     3,
+#     10,
+#     16,
+#     22,
+#     27,
+#     32,
+#     -1,
+#     4,
+#     11,
+#     17,
+#     23,
+#     28,
+#     33,
+#     -1,
+#     5,
+#     12,
+#     18,
+#     24,
+#     29,
+#     34,
+#     -1,
+#     6,
+#     13,
+#     19,
+#     25,
+#     30,
+#     35,
+# ]
+# for i in range(len(order) - 1):
+#     if order[i + 1] == -1 or order[i] == -1:
+#         continue
+#     plt.plot(
+#         [ppp[order[i]][0], ppp[order[i + 1]][0]],
+#         [ppp[order[i]][1], ppp[order[i + 1]][1]],
+#         "go-",
+#     )
+# plt.title("Wireframe on reprojected points")
+# plt.show()
+#
+# ### Finding Radial Distortions
+# I_gray = cv2.cvtColor(I, cv2.COLOR_BGR2GRAY)
+# temp = [[-1, 0, 0], [0, -1, 0], [0, 0, 1]]
+# K_positive = np.matmul(K_best, temp)
+# K_positive[0, 1] = 0
+#
+# world_pts1 = world_pts[:, :3]
+# image_pts1 = image_pts[:, :2]
+# world_pts1 = world_pts1.astype("float32")
+# image_pts1 = image_pts1.astype("float32")
+# ret, K_temp, dist, rvecs, tvecs = cv2.calibrateCamera(
+#     [world_pts1],
+#     [image_pts1],
+#     I_gray.shape[::-1],
+#     K_positive,
+#     None,
+#     None,
+#     flags=(cv2.CALIB_USE_INTRINSIC_GUESS),
 # )
 #
-# pp = np.c_[points, np.ones(len(points))]
-# # uv2 = np.dot(dlt, pp.T)
-# # uv2 = uv2 / uv2[2, :]
-# #
-# projections = np.zeros((points.shape[0], 3))
-# for i in range(points.shape[0]):
-#     projections[i, :] = np.matmul(P_best, np.transpose(pp[i, :]))
-#     projections[i, :] = projections[i, :] / projections[i, 2]
+# h, w = I.shape[:2]
+# newcameramtx, roi = cv2.getOptimalNewCameraMatrix(K_temp, dist, (w, h), 1, (w, h))
 #
-# imgpts = []
-# for aa in projections:
-#     imgpts.append([int(aa[0]), int(aa[1])])
-# imgpts = np.int32(np.array(imgpts)).reshape(-1, 2)
-#
-# # dst = cv2.perspectiveTransform(points.reshape(-1, 1, 3), projection)
-# # imgpts = np.int32(dst).reshape(-1, 2)
-#
-# # draw ground floor in green
-# img = cv2.drawContours(I.copy(), [imgpts[:4]], -1, (0, 255, 0), -3)
-# # draw pillars in blue color
-# for i, j in zip(range(4), range(4, 8)):
-#     img = cv2.line(img, tuple(imgpts[i]), tuple(imgpts[j]), (255, 0, 0), 3)
-# # draw top layer in red color
-# img = cv2.drawContours(img, [imgpts[4:]], -1, (0, 0, 255), 3)
-
-### Plotting the reconstructed and original points
-reprojected_image = I.copy()
-for pt in I_pts:
-    reprojected_image[pt[1] - 25 : pt[1] + 25, pt[0] - 25 : pt[0] + 25, :] = [0, 0, 255]
-for pt in ppp:
-    reprojected_image[pt[1] - 25 : pt[1] + 25, pt[0] - 25 : pt[0] + 25, :] = [255, 0, 0]
-plt.imshow(reprojected_image)
-plt.title("RANSAC DLT       Blue: Original Points     Red: Reprojected Points")
-plt.show()
-
-### Plotting the Origin Point
-I_origin = I.copy()
-origin = [0, 0, 0, 1]
-origin = np.asarray(origin)
-origin_img = np.zeros((3, 1))
-origin_img = np.matmul(P_best, origin)
-origin_img = origin_img / origin_img[2]
-I_origin[
-    int(origin_img[1]) - 25 : int(origin_img[1]) + 25,
-    int(origin_img[0]) - 25 : int(origin_img[0]) + 25,
-    :,
-] = [0, 255, 0]
-plt.imshow(I_origin)
-plt.title(
-    "Green Marker indicates the position of World Point given the Calibration Matrix"
-)
-plt.show()
-
-### Plotting the Wireframe on the grid
-wireframe = I.copy()
-plt.imshow(wireframe)
-
-idx = [6, 13, 19, 25, 30, 35]
-q = 0
-for i in range(35):
-    if i == idx[q]:
-        q = q + 1
-        continue
-    plt.plot([ppp[i][0], ppp[i + 1][0]], [ppp[i][1], ppp[i + 1][1]], "go-")
-plt.plot([ppp[0][0], ppp[6][0]], [ppp[0][1], ppp[6][1]], "go-")
-order = [
-    0,
-    7,
-    -1,
-    1,
-    8,
-    14,
-    20,
-    -1,
-    2,
-    9,
-    15,
-    21,
-    26,
-    31,
-    -1,
-    3,
-    10,
-    16,
-    22,
-    27,
-    32,
-    -1,
-    4,
-    11,
-    17,
-    23,
-    28,
-    33,
-    -1,
-    5,
-    12,
-    18,
-    24,
-    29,
-    34,
-    -1,
-    6,
-    13,
-    19,
-    25,
-    30,
-    35,
-]
-for i in range(len(order) - 1):
-    if order[i + 1] == -1 or order[i] == -1:
-        continue
-    plt.plot(
-        [ppp[order[i]][0], ppp[order[i + 1]][0]],
-        [ppp[order[i]][1], ppp[order[i + 1]][1]],
-        "go-",
-    )
-plt.title("Wireframe on reprojected points")
-plt.show()
-
-### Finding Radial Distortions
-I_gray = cv2.cvtColor(I, cv2.COLOR_BGR2GRAY)
-temp = [[-1, 0, 0], [0, -1, 0], [0, 0, 1]]
-K_positive = np.matmul(K_best, temp)
-K_positive[0, 1] = 0
-
-world_pts1 = world_pts[:, :3]
-image_pts1 = image_pts[:, :2]
-world_pts1 = world_pts1.astype("float32")
-image_pts1 = image_pts1.astype("float32")
-ret, K_temp, dist, rvecs, tvecs = cv2.calibrateCamera(
-    [world_pts1],
-    [image_pts1],
-    I_gray.shape[::-1],
-    K_positive,
-    None,
-    None,
-    flags=(cv2.CALIB_USE_INTRINSIC_GUESS),
-)
-
-h, w = I.shape[:2]
-newcameramtx, roi = cv2.getOptimalNewCameraMatrix(K_temp, dist, (w, h), 1, (w, h))
-
-print("Distortion Parameters are:")
-print(dist)
-I_undistort = cv2.undistort(I, K_temp, dist, None, newcameramtx)
-plt.subplot(1, 2, 1)
-plt.imshow(I)
-plt.title("Original Image")
-plt.subplot(1, 2, 2)
-plt.imshow(I_undistort)
-plt.title("Undistorted Image")
-plt.show()
+# print("Distortion Parameters are:")
+# print(dist)
+# I_undistort = cv2.undistort(I, K_temp, dist, None, newcameramtx)
+# plt.subplot(1, 2, 1)
+# plt.imshow(I)
+# plt.title("Original Image")
+# plt.subplot(1, 2, 2)
+# plt.imshow(I_undistort)
+# plt.title("Undistorted Image")
+# plt.show()
