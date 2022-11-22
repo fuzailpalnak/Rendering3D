@@ -53,7 +53,14 @@ def calm_before_the_storm(x):
     if d == 2:
         tr = np.array([[s, 0, -s * m[0]], [0, s, -s * m[1]], [0, 0, 1]])
     else:
-        tr = np.array([[s, 0, 0, -s * m[0]], [0, s, 0, -s * m[1]], [0, 0, s, -s * m[2]], [0, 0, 0, 1]])
+        tr = np.array(
+            [
+                [s, 0, 0, -s * m[0]],
+                [0, s, 0, -s * m[1]],
+                [0, 0, s, -s * m[2]],
+                [0, 0, 0, 1],
+            ]
+        )
 
     return tr
 
@@ -68,12 +75,14 @@ def calm_before_the_storm_1(x):
 
         dist = np.sqrt(np.power(x_c, 2) + np.power(y_c, 2) + np.power(z_c, 2))
         scale = np.sqrt(2) / dist.mean()
-        tr = np.array([
-            [scale, 0, 0, -scale * center[0]],
-            [0, scale, 0, -scale * center[1]],
-            [0, 0, scale, -scale * center[2]],
-            [0, 0, 0, 1]
-        ])
+        tr = np.array(
+            [
+                [scale, 0, 0, -scale * center[0]],
+                [0, scale, 0, -scale * center[1]],
+                [0, 0, scale, -scale * center[2]],
+                [0, 0, 0, 1],
+            ]
+        )
     else:
         center = x.mean(0)
         x_c = x[:, 0:1] - center[0]
@@ -81,11 +90,9 @@ def calm_before_the_storm_1(x):
 
         dist = np.sqrt(np.power(x_c, 2) + np.power(y_c, 2))
         scale = np.sqrt(2) / dist.mean()
-        tr = np.array([
-            [scale, 0, -scale * center[0]],
-            [0, scale, -scale * center[1]],
-            [0, 0, 1]
-        ])
+        tr = np.array(
+            [[scale, 0, -scale * center[0]], [0, scale, -scale * center[1]], [0, 0, 1]]
+        )
 
     return tr
 
@@ -109,12 +116,14 @@ def scale_and_translate_wc(pts):
 
     dist = np.sqrt(np.power(x_c, 2) + np.power(y_c, 2) + np.power(z_c, 2))
     scale = np.sqrt(2) / dist.mean()
-    norm4d = np.array([
-        [scale, 0, 0, -scale * center[0]],
-        [0, scale, 0, -scale * center[1]],
-        [0, 0, scale, -scale * center[2]],
-        [0, 0, 0, 1]
-    ])
+    norm4d = np.array(
+        [
+            [scale, 0, 0, -scale * center[0]],
+            [0, scale, 0, -scale * center[1]],
+            [0, 0, scale, -scale * center[2]],
+            [0, 0, 0, 1],
+        ]
+    )
     return np.dot(norm4d, pts.T).T, norm4d
 
 
@@ -125,11 +134,9 @@ def scale_and_translate_ic(pts):
 
     dist = np.sqrt(np.power(x_c, 2) + np.power(y_c, 2))
     scale = np.sqrt(2) / dist.mean()
-    norm3d = np.array([
-        [scale, 0, -scale * center[0]],
-        [0, scale, -scale * center[1]],
-        [0, 0, 1]
-    ])
+    norm3d = np.array(
+        [[scale, 0, -scale * center[0]], [0, scale, -scale * center[1]], [0, 0, 1]]
+    )
     return np.dot(norm3d, pts.T).T, norm3d
 
 
@@ -287,8 +294,10 @@ def dlt_ransac(point_map, scale, threshold=0.2):
             tt_wc = calm_before_the_storm_2(add_z_for_wc(wc * scale))
             tt_ic = calm_before_the_storm_2(ic)
 
-            normalized_wcc = (tt_wc@np.c_[add_z_for_wc(wc * scale), np.ones(len(wc))].T).T
-            normalized_icc = (tt_ic@np.c_[ic, np.ones(len(ic))].T).T
+            normalized_wcc = (
+                tt_wc @ np.c_[add_z_for_wc(wc * scale), np.ones(len(wc))].T
+            ).T
+            normalized_icc = (tt_ic @ np.c_[ic, np.ones(len(ic))].T).T
 
             # t_wc, normalized_wc = normalize_3d(add_z_for_wc(wc * scale))
             # t_ic, normalized_ic = normalize_2d(ic)
@@ -298,7 +307,7 @@ def dlt_ransac(point_map, scale, threshold=0.2):
             )
 
             # approximation = approximation_normalized
-            approximation = (np.linalg.inv(tt_ic)@approximation_normalized)@tt_wc
+            approximation = (np.linalg.inv(tt_ic) @ approximation_normalized) @ tt_wc
 
             approximation = approximation / approximation[-1, -1]
 
@@ -388,8 +397,8 @@ def homography_ransac(point_map, threshold=0.2):
             tt_wc = calm_before_the_storm_2(wc)
             tt_ic = calm_before_the_storm_2(ic)
 
-            normalized_wcc = (tt_wc@np.c_[wc, np.ones(len(wc))].T).T
-            normalized_icc = (tt_ic@np.c_[ic, np.ones(len(ic))].T).T
+            normalized_wcc = (tt_wc @ np.c_[wc, np.ones(len(wc))].T).T
+            normalized_icc = (tt_ic @ np.c_[ic, np.ones(len(ic))].T).T
 
             # t_wc, normalized_wc = normalize_3d(add_z_for_wc(wc * scale))
             # t_ic, normalized_ic = normalize_2d(ic)
@@ -399,7 +408,7 @@ def homography_ransac(point_map, threshold=0.2):
             )
 
             # approximation = approximation_normalized
-            approximation = (np.linalg.inv(tt_ic)@approximation_normalized)@tt_wc
+            approximation = (np.linalg.inv(tt_ic) @ approximation_normalized) @ tt_wc
 
             approximation = approximation / approximation[-1, -1]
 

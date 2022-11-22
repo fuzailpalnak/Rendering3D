@@ -9,6 +9,7 @@ import numpy as np
 from task1.src.util import draw_pairs, draw_key_points
 from task1.src.ops import find_features, match_features
 
+cv2.solvePnP()
 # MODEL_IMAGE = r"/home/palnak/base.jpg"
 # MODEL_IMAGE = r"/home/palnak/sw1.jpg"
 MODEL_IMAGE = r"../data/surface_test.jpg"
@@ -62,8 +63,12 @@ def get_projection_matrix(camera_parameters, homography):
     c = rot_1 + rot_2
     p = np.cross(rot_1, rot_2)
     d = np.cross(c, p)
-    rot_1 = np.dot(c / np.linalg.norm(c, 2) + d / np.linalg.norm(d, 2), 1 / math.sqrt(2))
-    rot_2 = np.dot(c / np.linalg.norm(c, 2) - d / np.linalg.norm(d, 2), 1 / math.sqrt(2))
+    rot_1 = np.dot(
+        c / np.linalg.norm(c, 2) + d / np.linalg.norm(d, 2), 1 / math.sqrt(2)
+    )
+    rot_2 = np.dot(
+        c / np.linalg.norm(c, 2) - d / np.linalg.norm(d, 2), 1 / math.sqrt(2)
+    )
     rot_3 = np.cross(rot_1, rot_2)
 
     # finally, compute the 3D projection matrix from the model to the current frame
@@ -80,7 +85,14 @@ def calm_before_the_storm(x):
     if d == 2:
         tr = np.array([[s, 0, -s * m[0]], [0, s, -s * m[1]], [0, 0, 1]])
     else:
-        tr = np.array([[s, 0, 0, -s * m[0]], [0, s, 0, -s * m[1]], [0, 0, s, -s * m[2]], [0, 0, 0, 1]])
+        tr = np.array(
+            [
+                [s, 0, 0, -s * m[0]],
+                [0, s, 0, -s * m[1]],
+                [0, 0, s, -s * m[2]],
+                [0, 0, 0, 1],
+            ]
+        )
 
     return tr
 
@@ -95,12 +107,14 @@ def calm_before_the_storm_1(x):
 
         dist = np.sqrt(np.power(x_c, 2) + np.power(y_c, 2) + np.power(z_c, 2))
         scale = np.sqrt(2) / dist.mean()
-        tr = np.array([
-            [scale, 0, 0, -scale * center[0]],
-            [0, scale, 0, -scale * center[1]],
-            [0, 0, scale, -scale * center[2]],
-            [0, 0, 0, 1]
-        ])
+        tr = np.array(
+            [
+                [scale, 0, 0, -scale * center[0]],
+                [0, scale, 0, -scale * center[1]],
+                [0, 0, scale, -scale * center[2]],
+                [0, 0, 0, 1],
+            ]
+        )
     else:
         center = x.mean(0)
         x_c = x[:, 0:1] - center[0]
@@ -108,11 +122,9 @@ def calm_before_the_storm_1(x):
 
         dist = np.sqrt(np.power(x_c, 2) + np.power(y_c, 2))
         scale = np.sqrt(2) / dist.mean()
-        tr = np.array([
-            [scale, 0, -scale * center[0]],
-            [0, scale, -scale * center[1]],
-            [0, 0, 1]
-        ])
+        tr = np.array(
+            [[scale, 0, -scale * center[0]], [0, scale, -scale * center[1]], [0, 0, 1]]
+        )
 
     return tr
 
@@ -136,12 +148,14 @@ def scale_and_translate_wc(pts):
 
     dist = np.sqrt(np.power(x_c, 2) + np.power(y_c, 2) + np.power(z_c, 2))
     scale = np.sqrt(2) / dist.mean()
-    norm4d = np.array([
-        [scale, 0, 0, -scale * center[0]],
-        [0, scale, 0, -scale * center[1]],
-        [0, 0, scale, -scale * center[2]],
-        [0, 0, 0, 1]
-    ])
+    norm4d = np.array(
+        [
+            [scale, 0, 0, -scale * center[0]],
+            [0, scale, 0, -scale * center[1]],
+            [0, 0, scale, -scale * center[2]],
+            [0, 0, 0, 1],
+        ]
+    )
     return np.dot(norm4d, pts.T).T, norm4d
 
 
@@ -152,11 +166,9 @@ def scale_and_translate_ic(pts):
 
     dist = np.sqrt(np.power(x_c, 2) + np.power(y_c, 2))
     scale = np.sqrt(2) / dist.mean()
-    norm3d = np.array([
-        [scale, 0, -scale * center[0]],
-        [0, scale, -scale * center[1]],
-        [0, 0, 1]
-    ])
+    norm3d = np.array(
+        [[scale, 0, -scale * center[0]], [0, scale, -scale * center[1]], [0, 0, 1]]
+    )
     return np.dot(norm3d, pts.T).T, norm3d
 
 
@@ -297,8 +309,8 @@ def homography_ransac(point_map, threshold=0.7):
             tt_wc = calm_before_the_storm(wc)
             tt_ic = calm_before_the_storm(ic)
 
-            normalized_wcc = (tt_wc@np.c_[wc, np.ones(len(wc))].T).T
-            normalized_icc = (tt_ic@np.c_[ic, np.ones(len(ic))].T).T
+            normalized_wcc = (tt_wc @ np.c_[wc, np.ones(len(wc))].T).T
+            normalized_icc = (tt_ic @ np.c_[ic, np.ones(len(ic))].T).T
             if np.isinf(np.sum(normalized_icc)):
                 print("here")
             # t_wc, normalized_wc = normalize_3d(add_z_for_wc(wc * scale))
@@ -309,7 +321,7 @@ def homography_ransac(point_map, threshold=0.7):
             )
 
             # approximation = approximation_normalized
-            approximation = (np.linalg.inv(tt_ic)@approximation_normalized)@tt_wc
+            approximation = (np.linalg.inv(tt_ic) @ approximation_normalized) @ tt_wc
 
             approximation = approximation / approximation[-1, -1]
 
@@ -544,11 +556,7 @@ def stream(pth: Union[str, int] = 0):
         pm = get_projection_matrix(WEBCAM_INTRINSIC, homography_matrix)
         # RENDER ORIGIN AND CUBE
         rendered_frame = (
-            render(
-                frame_rgb, matched_pairs, pm
-            )
-            if pm is not None
-            else frame_rgb
+            render(frame_rgb, matched_pairs, pm) if pm is not None else frame_rgb
         )
 
         h, w = model_image.shape
@@ -557,7 +565,9 @@ def stream(pth: Union[str, int] = 0):
         )
         # project corners into frame
         dst = cv2.perspectiveTransform(pts, homography_matrix)
-        rendered_frame = cv2.polylines(rendered_frame.copy(), [np.int32(dst)], True, 255, 3, cv2.LINE_AA)
+        rendered_frame = cv2.polylines(
+            rendered_frame.copy(), [np.int32(dst)], True, 255, 3, cv2.LINE_AA
+        )
 
         if DEBUG:
             cv2.imwrite(
