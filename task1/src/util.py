@@ -52,3 +52,36 @@ def draw_key_points(image1, image2, point_map, pairs=None, max_points=1000):
         cv2.circle(match_image, point2, 5, BLUE, 1)
 
     return match_image
+
+
+def draw_origin(frame, origin_ic):
+    cv2.circle(
+        frame, (abs(int(origin_ic[0])), abs(int(origin_ic[1]))), 5, (255, 0, 0), -1
+    )
+    return frame
+
+
+def draw_projected_pts(frame, pts):
+    img_pts = []
+    for aa in pts:
+        img_pts.append([int(aa[0]), int(aa[1])])
+
+    for pt in img_pts:
+        frame[pt[1] - 3 : pt[1] + 3, pt[0] - 3 : pt[0] + 3, :] = [0, 0, 255]
+    return frame
+
+
+def draw_cube(frame, pts):
+    img_pts = []
+    for aa in pts:
+        img_pts.append([int(aa[0]), int(aa[1])])
+
+    img_pts = np.int32(np.array(img_pts)).reshape(-1, 2)
+    # draw ground floor in green
+    frame = cv2.drawContours(frame, [img_pts[:4]], -1, (0, 255, 0), -3)
+    # draw pillars in blue color
+    for i, j in zip(range(4), range(4, 8)):
+        frame = cv2.line(frame, tuple(img_pts[i]), tuple(img_pts[j]), (255, 0, 0), 3)
+    # draw top layer in red color
+    frame = cv2.drawContours(frame, [img_pts[4:]], -1, (0, 0, 255), 3)
+    return frame
