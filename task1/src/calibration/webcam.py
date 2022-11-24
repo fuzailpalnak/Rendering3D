@@ -9,7 +9,6 @@ __reference__ = [
 # Define the dimensions of checkerboard
 CHECKERBOARD = (7, 7)
 MIN_POINTS = 50
-RECORD = True
 
 
 def obj3d():
@@ -39,12 +38,6 @@ def generate_parameters_for_calibration():
     # Check if the webcam is opened correctly
     if not cap.isOpened():
         raise IOError("Cannot open webcam")
-
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    writer = cv2.VideoWriter(
-        "calibration.mp4", cv2.VideoWriter_fourcc(*"DIVX"), fps, (width, height)
-    )
 
     object_p3d = obj3d()
 
@@ -82,7 +75,6 @@ def generate_parameters_for_calibration():
             # When we have minimum number of data points, stop:
             if len(points_2d) > MIN_POINTS:
                 cap.release()
-                writer.release()
                 cv2.destroyAllWindows()
                 print("HAVE MIN NUMBER OF POINTS STOP")
                 return image, img_gray, points_2d, points_3d
@@ -92,14 +84,11 @@ def generate_parameters_for_calibration():
 
         cv2.imshow("img", image)
 
-        writer.write(image)
-
         # wait for ESC key to exit and terminate feed.
         k = cv2.waitKey(1)
         if k == 27:
             print("EXIT")
             cap.release()
-            writer.release()
             cv2.destroyAllWindows()
             return image, img_gray, points_2d, points_3d
 
@@ -123,11 +112,11 @@ def run_calibration():
     print("\n Distortion coefficient:")
     print(distortion)
 
-    # print("\n Rotation Vectors:")
-    # print(r_vecs)
-    #
-    # print("\n Translation Vectors:")
-    # print(t_vecs)
+    print("\n Rotation Vectors:")
+    print(r_vecs)
+
+    print("\n Translation Vectors:")
+    print(t_vecs)
 
 
 if __name__ == "__main__":

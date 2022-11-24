@@ -1,18 +1,25 @@
+import os.path
+from typing import Union
+
 import cv2
+import ffmpeg
 import numpy as np
 
-from task1.src.models.camera import DLT, Homography
-from task1.src.models.reference import Reference3DCylindrical, Reference2D
+from task1.src.model.camera import DLT, Homography
+from task1.src.model.reference import Reference3DCylindrical, Reference2D
 from task1.src.util import draw_key_points, draw_origin, draw_projected_pts, draw_cube
 
-REF_IMG_PTH = (
-    r"../data/wetransfer_image00001-jpeg_2022-11-15_0719/ezgif-frame-005-crop.jpg"
-)
-REF_IMG_PTH_2D = r"C:\Users\Fuzail.Palnak\UHD\openSource\AR\task1\data\surface_test.jpg"
-WEBCAM_INTRINSIC = np.array([[800.0, 0.0, 320.0], [0.0, 800.0, 240.0], [0.0, 0.0, 1.0]])
+REF_IMG_PTH_3D = r"../data/3d/reference.jpg"
+REF_IMG_PTH_2D = r""
+
+DISPLAY = False
+
+OUTPUT = r"../output/"
+if not os.path.exists(OUTPUT):
+    os.makedirs(OUTPUT)
 
 
-def with_3d_world_coordinates(image_plane: np.ndarray, dlt_model: DLT):
+def render_with_3d_world_coordinates(image_plane: np.ndarray, dlt_model: DLT):
     image_plane_rgb = image_plane.copy()
     image_plane = cv2.cvtColor(image_plane, cv2.COLOR_BGR2GRAY)
 
@@ -44,12 +51,14 @@ def with_3d_world_coordinates(image_plane: np.ndarray, dlt_model: DLT):
     return rendered_frame
 
 
-def with_2d_world_coordinates(image_plane: np.ndarray, homography_model: Homography):
+def render_with_2d_world_coordinates(
+    image_plane: np.ndarray, homography_model: Homography, camera_parameters: np.ndarray
+):
 
     frame_rgb = image_plane.copy()
     image_plane = cv2.cvtColor(image_plane, cv2.COLOR_BGR2GRAY)
 
-    _pose = homography_model.run(image_plane, camera_parameters=WEBCAM_INTRINSIC)
+    _pose = homography_model.run(image_plane, camera_parameters=camera_parameters)
 
     # RENDER ORIGIN AND CUBE
     origin_ic = homography_model.project_origin(
@@ -79,53 +88,70 @@ def with_2d_world_coordinates(image_plane: np.ndarray, homography_model: Homogra
     return rendered_frame
 
 
-# on_image(r"../data/wetransfer_image00001-jpeg_2022-11-15_0719/ezgif-frame-005.jpg", 100)
+def stream_homography(pth: Union[str, int], camera_parameters: np.ndarray):
+    cap = cv2.VideoCapture(pth)
 
-# _dlt = DLT(Reference3DCylindrical(img_pth=REF_IMG_PTH))
-# frame = cv2.imread(r"C:\Users\Fuzail.Palnak\UHD\openSource\AR\task1\data\base_1.jpg")
-# for i in range(100):
-#     _frame = with_3d_world_coordinates(image_plane=frame, dlt_model=_dlt)
-#     cv2.imshow("img", _frame)
-#
-#     # writer.write(mapping_img)
-#     if cv2.waitKey(3000) == 27:
-#         print("EXIT")
-#         cv2.destroyAllWindows()
+    # Check if the webcam is opened correctly
+    if not cap.isOpened():
+        raise IOError("Cannot open THE provided")
 
-_homography = Homography(Reference2D(img_pth=REF_IMG_PTH_2D))
-frame = cv2.imread(
-    r"C:\Users\Fuzail.Palnak\UHD\openSource\AR\task1\data\surface_test.jpg"
-)
-for i in range(100):
-    _frame = with_2d_world_coordinates(image_plane=frame, homography_model=_homography)
-    cv2.imshow("img", _frame)
+    _homography = Homography(Reference2D(img_pth=REF_IMG_PTH_2D))
+    fc = 1
+    while cap.isOpened():
+        print(f"└──>FRAME IN PROGRESS {fc+1}")
 
-    # writer.write(mapping_img)
-    if cv2.waitKey(3000) == 27:
-        print("EXIT")
-        cv2.destroyAllWindows()
+        _, image_plane = cap.read()
+        if image_plane is None:
+            continue
 
-# on_2d_image(
-#     r"C:\Users\Fuzail.Palnak\UHD\openSource\AR\task1\data\surface_test.jpg", 100
-# )
-# st.stream(r"../data/wetransfer_image00001-jpeg_2022-11-15_0719/IMG_3411.MOV")
+        _rendered_frame = render_with_2d_world_coordinates(
+            image_plane=image_plane,
+            homography_model=_homography,
+            camera_parameters=camera_parameters,
+        )
+        if DISPLAY:
+            cv2.imshow("img", _rendered_frame)
 
-# run(r"../data/wetransfer_2022-11-10-131213-jpg_2022-11-10_1222/s1.webm")
-# run(0)
-# run(r"/home/palnak/2022-11-10-132141.webm")
-# run(r"/home/palnak/2022-11-10-132141.webm")
-# run(r"/home/palnak/swde1.webm")
-# run(r"/home/palnak/2022-11-10-132141.webm")
-# print(np.log(1-0.99) / (np.log(1 - ((1-0.50) ** 6))) * 10)
+        cv2.imwrite(os.path.join(OUTPUT, f"{fc}.png"), _rendered_frame)
+        if cv2.waitKey(1) == 27:
+            print("EXIT")
+            cap.release()
+            cv2.destroyAllWindows()
+        fc += 1
 
-# x1 = np.array([20, 30, 40, 50, 60, 30, 20, 40])
-# y1 =  np.array([12, 34, 56, 78, 89, 45, 90, 29])
-# x = np.column_stack((x1,y1))
-# centroid = np.mean( np.transpose( x ) , axis=-1)
-# dist = [ np.sqrt( np.sum( np.square( v - centroid ) ) ) for v in x ]
-# centroid = np.mean( np.transpose( x ) , axis=-1)
-#
-# for v in x:
-#     q = np.sqrt( np.sum( np.square( v - centroid ) ) )
-#     print(q)
-# print(dist)
+
+def stream_dlt(pth: Union[str, int] = 0):
+    cap = cv2.VideoCapture(pth)
+
+    # Check if the webcam is opened correctly
+    if not cap.isOpened():
+        raise IOError("Cannot open THE provided")
+
+    _dlt = DLT(Reference3DCylindrical(img_pth=REF_IMG_PTH_3D))
+    fc = 1
+    while cap.isOpened():
+
+        print(f"└──>FRAME IN PROGRESS {fc}")
+
+        _, image_plane = cap.read()
+        if image_plane is None:
+            fc += 1
+            continue
+
+        _rendered_frame = render_with_3d_world_coordinates(
+            image_plane=image_plane, dlt_model=_dlt
+        )
+        if DISPLAY:
+            cv2.imshow("img", _rendered_frame)
+
+        cv2.imwrite(os.path.join(OUTPUT, f"{fc}.png"), _rendered_frame)
+
+        if cv2.waitKey(1) == 27:
+            print("EXIT")
+            cap.release()
+            cv2.destroyAllWindows()
+        fc += 1
+
+
+if __name__ == "__main__":
+    stream_dlt(r"../data/3d/cylindrical-surface.mp4")

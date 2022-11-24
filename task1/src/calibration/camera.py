@@ -12,7 +12,7 @@ __reference__ = [
 CHECKERBOARD = (7, 7)
 MIN_POINTS = 50
 RECORD = True
-DATA = r"/home/palnak/Workspace/Studium/msc/sem3/assignment/AR/task1/data/imagesForCalibration"
+DATA = r""
 
 
 def obj3d():
@@ -105,10 +105,4 @@ def run_calibration():
 
 
 if __name__ == "__main__":
-    """
-    iphone 14 pr :
-        [[6.23649154e+02 0.00000000e+00 1.45491457e+03]
-        [0.00000000e+00 6.24325606e+02 1.94913052e+03]
-        [0.00000000e+00 0.00000000e+00 1.00000000e+00]]
-    """
     run_calibration()
