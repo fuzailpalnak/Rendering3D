@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from task1.src.ops import find_features
+from task1.src.ops import find_features_with_sift
 
 
 class Reference:
@@ -48,8 +48,7 @@ class Reference:
         raise NotImplementedError
 
     def features(self):
-        _key_points, _desc = find_features(self._image)
-        return _key_points, _desc
+        raise NotImplementedError
 
 
 class Reference3DCylindrical(Reference):
@@ -134,7 +133,7 @@ class Reference3DCylindrical(Reference):
         return np.hstack([_cx, _cy, _cz])
 
     def features(self):
-        _key_points, _desc = find_features(self._image)
+        _key_points, _desc = find_features_with_sift(self._image)
         return _key_points, _desc
 
 
@@ -204,5 +203,5 @@ class Reference2D(Reference):
         return wc_px
 
     def features(self):
-        _key_points, _desc = find_features(self._image)
+        _key_points, _desc = find_features_with_sift(self._image)
         return _key_points, _desc

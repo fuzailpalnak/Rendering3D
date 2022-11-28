@@ -2,17 +2,22 @@ import os.path
 from typing import Union
 
 import cv2
-import ffmpeg
 import numpy as np
 
 from task1.src.model.camera import DLT, Homography
 from task1.src.model.reference import Reference3DCylindrical, Reference2D
-from task1.src.util import draw_key_points, draw_origin, draw_projected_pts, draw_cube
+from task1.src.util import (
+    draw_key_points,
+    draw_origin,
+    draw_projected_pts,
+    draw_cube,
+    execution_time,
+)
 
 REF_IMG_PTH_3D = r"../data/3d/reference.jpg"
 REF_IMG_PTH_2D = r""
 
-DISPLAY = False
+DISPLAY = True
 
 OUTPUT = r"../output/"
 if not os.path.exists(OUTPUT):
@@ -130,13 +135,14 @@ def stream_dlt(pth: Union[str, int] = 0):
     _dlt = DLT(Reference3DCylindrical(img_pth=REF_IMG_PTH_3D))
     fc = 1
     while cap.isOpened():
-
         print(f"└──>FRAME IN PROGRESS {fc}")
 
         _, image_plane = cap.read()
         if image_plane is None:
             fc += 1
             continue
+        # image_plane = cv2.rotate(image_plane, cv2.ROTATE_90_CLOCKWISE)
+        # image_plane = cv2.rotate(image_plane, cv2.ROTATE_90_CLOCKWISE)
 
         _rendered_frame = render_with_3d_world_coordinates(
             image_plane=image_plane, dlt_model=_dlt
@@ -154,4 +160,4 @@ def stream_dlt(pth: Union[str, int] = 0):
 
 
 if __name__ == "__main__":
-    stream_dlt(r"../data/3d/cylindrical-surface.mp4")
+    stream_dlt(r"../data/3d/cylindrical-surface-station-camera.mp4")

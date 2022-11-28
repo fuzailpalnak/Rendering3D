@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from task1.src.ops import find_features, match_features
+from task1.src.ops import find_features_with_sift, match_features_with_sift
 
 NUM_ITERATIONS = 2924
 
@@ -45,7 +45,7 @@ class Pose:
     @staticmethod
     def get_matches(m_desc, f_desc):
         # FEATURE MATCHING
-        matches = match_features(m_desc, f_desc)
+        matches = match_features_with_sift(m_desc, f_desc)
         # matches = sorted(matches, key=lambda x: x.distance)
         return matches
 
@@ -105,7 +105,7 @@ class Pose:
     def ransac(self, wc, ic, threshold=0.7):
         raise NotImplementedError
 
-    def pose(self, wc, ic, **kwargs):
+    def pose(self, wc, ic, **kwargs) -> PoseOutput:
         raise NotImplementedError
 
     def create_linear_eqn(self, wc, ic):
@@ -116,7 +116,7 @@ class Pose:
 
     def run(self, frame, **kwargs) -> PoseOutput:
         print(f"└──>ESTIMATING POSE")
-        f_key_points, f_desc = find_features(frame)
+        f_key_points, f_desc = find_features_with_sift(frame)
 
         # Matches
         matches = self.get_matches(m_desc=self._m_desc, f_desc=f_desc)
@@ -166,13 +166,25 @@ class DLT(Pose):
 
     def projection_error(self, projection_matrix, ic, wc):
         projected_points = self._project_wc_on_ic(projection_matrix, wc)
-        # return np.abs(projected_points[:, 0] - ic[:, 0]) + np.abs(
-        #     projected_points[:, 1] - ic[:, 1]
-        # )
-        return np.linalg.norm(ic - np.abs(projected_points), axis=-1)
+        return np.abs(projected_points[:, 0] - ic[:, 0]) + np.abs(
+            projected_points[:, 1] - ic[:, 1]
+        )
+        # return np.linalg.norm(ic - np.abs(projected_points), axis=-1)
+
+    def get_normalised_pts_and_translation(self, pts):
+        tt_pts = self.calm_before_the_storm(pts)
+        normalized_pts = (tt_pts @ self.to_homogenous(pts).T).T
+        return tt_pts, normalized_pts
+
+    @staticmethod
+    def de_normalize(tt_ic, tt_wc, h):
+        h = (np.linalg.inv(tt_ic) @ h) @ tt_wc
+        h = h / h[-1, -1]
+        return h
 
     def ransac(self, wc, ic, threshold=0.7):
         best_pairs = set()
+        best_pairs_co_ords = set()
         best_projection = None
 
         point_map = self.get_point_map(wc, ic)
@@ -188,8 +200,8 @@ class DLT(Pose):
 
                 wc, ic = self.get_wc_ic_from_map(random_pairs)
 
-                tt_wc = self.calm_before_the_storm(wc)
-                tt_ic = self.calm_before_the_storm(ic)
+                tt_wc, normalized_wcc = self.get_normalised_pts_and_translation(wc)
+                tt_ic, normalized_icc = self.get_normalised_pts_and_translation(ic)
 
                 # #
                 # # tt_wc = calm_before_the_storm_1(wc)
@@ -198,8 +210,6 @@ class DLT(Pose):
                 # # tt_wc = calm_before_the_storm_2(wc)
                 # # tt_ic = calm_before_the_storm_2(ic)
                 # #
-                normalized_wcc = (tt_wc @ np.c_[wc, np.ones(len(wc))].T).T
-                normalized_icc = (tt_ic @ np.c_[ic, np.ones(len(ic))].T).T
                 #
                 # # t_wc, normalized_wc = normalize_3d(add_z_for_wc(wc * scale))
                 # # t_ic, normalized_ic = normalize_2d(ic)
@@ -210,11 +220,10 @@ class DLT(Pose):
                         ic=normalized_icc,
                     )
                 )
-                #
-                approximation = (
-                    np.linalg.inv(tt_ic) @ approximation_normalized
-                ) @ tt_wc
-                approximation = approximation / approximation[-1, -1]
+
+                approximation = self.de_normalize(
+                    tt_ic, tt_wc, approximation_normalized
+                )
 
                 # approximation = self.estimate(
                 #     wc,
@@ -222,21 +231,24 @@ class DLT(Pose):
                 # )
 
                 if np.all(np.isnan(approximation) == False):
-                    wc, ic = self.get_wc_ic_from_map(np.array(remaining_pairs))
+                    wc, ic = self.get_wc_ic_from_map(np.array(point_map))
 
                     wc = self.to_homogenous(wc)
                     ic = self.to_homogenous(ic)
 
                     pe1 = self.projection_error(approximation, ic, wc)
+                    pt_below_threshold = np.where(pe1 < 5)
+                    pairs_co_ords = np.array(points_range)[pt_below_threshold]
                     matched_pair = np.hstack(
                         [
-                            wc[np.where(pe1 < 5)][:, 0:3],
-                            ic[np.where(pe1 < 5)][:, 0:2],
+                            wc[pt_below_threshold][:, 0:3],
+                            ic[pt_below_threshold][:, 0:2],
                         ]
                     )
                     if len(matched_pair) > len(best_pairs):
                         best_pairs = matched_pair
                         best_projection = approximation
+                        best_pairs_co_ords = pairs_co_ords
                         print(f"\t\t└──>ITERATION {i + 1}, ERROR {np.mean(pe1)}")
 
                     if len(best_pairs) > (len(point_map) * threshold):
@@ -254,29 +266,21 @@ class DLT(Pose):
             print(f"\t└──>BEST INLIERS {len(best_pairs)}")
             print(f"\t\t└──>REFINED ERROR {np.mean(total_error)}")
 
-        return best_projection, best_pairs
+        return best_projection, best_pairs, best_pairs_co_ords
 
-    def pose(self, wc, ic, **kwargs):
+    def pose(self, wc, ic, **kwargs) -> PoseOutput:
         # MAP TO WC
         wcz = self._reference.model_z_coordinate(wc)
 
         # DLT
-        pm, matched_pairs = self.ransac(wc=wcz, ic=ic)
-
-        _wcz, _ = self.get_wc_ic_from_map(matched_pairs)
-        _matched_wx_px_idx = list()
-        _matched_ic_px_idx = list()
-        for i in _wcz:
-            xyz = np.where(i[np.newaxis] == wcz)
-            x = xyz[0][0:2]
-            y = xyz[1][0:2]
-            _matched_wx_px_idx.append(wc[x, y])
-            _matched_ic_px_idx.append(ic[x, y])
+        pm, matched_pairs, matched_pairs_co_ords = self.ransac(wc=wcz, ic=ic)
 
         return PoseOutput(
             projection_matrix=pm,
             matched_pairs=matched_pairs,
-            matched_pairs_px=np.hstack([_matched_wx_px_idx, _matched_ic_px_idx]),
+            matched_pairs_px=np.hstack(
+                [wc[matched_pairs_co_ords], ic[matched_pairs_co_ords]]
+            ),
         )
 
     def create_linear_eqn(self, wc, ic):
@@ -458,7 +462,7 @@ class Homography(Pose):
 
         return best_projection, best_pairs
 
-    def pose(self, wc, ic, **kwargs):
+    def pose(self, wc, ic, **kwargs) -> PoseOutput:
         # MAP TO WC
         wcz = self._reference.model_z_coordinate(wc)
 
