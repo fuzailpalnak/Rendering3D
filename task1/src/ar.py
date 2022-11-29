@@ -1,4 +1,5 @@
 import os.path
+import shutil
 from typing import Union
 
 import cv2
@@ -60,7 +61,7 @@ def render_with_2d_world_coordinates(
 ):
 
     frame_rgb = image_plane.copy()
-    image_plane = cv2.cvtColor(image_plane, cv2.COLOR_BGR2GRAY)
+    # image_plane = cv2.cvtColor(image_plane, cv2.COLOR_BGR2GRAY)
 
     _pose = homography_model.run(image_plane, camera_parameters=camera_parameters)
 
