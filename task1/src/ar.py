@@ -11,7 +11,6 @@ from task1.src.util import (
     draw_origin,
     draw_projected_pts,
     draw_cube,
-    execution_time,
 )
 
 REF_IMG_PTH_3D = r"../data/3d/reference.jpg"
@@ -160,4 +159,4 @@ def stream_dlt(pth: Union[str, int] = 0):
 
 
 if __name__ == "__main__":
-    stream_dlt(r"../data/3d/cylindrical-surface-station-camera.mp4")
+    stream_dlt(r"../data/3d/demo-1_Trim-1.mp4")

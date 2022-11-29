@@ -166,10 +166,10 @@ class DLT(Pose):
 
     def projection_error(self, projection_matrix, ic, wc):
         projected_points = self._project_wc_on_ic(projection_matrix, wc)
-        return np.abs(projected_points[:, 0] - ic[:, 0]) + np.abs(
-            projected_points[:, 1] - ic[:, 1]
-        )
-        # return np.linalg.norm(ic - np.abs(projected_points), axis=-1)
+        # return np.abs(projected_points[:, 0] - ic[:, 0]) + np.abs(
+        #     projected_points[:, 1] - ic[:, 1]
+        # )
+        return np.linalg.norm(ic - np.abs(projected_points), axis=-1)
 
     def get_normalised_pts_and_translation(self, pts):
         tt_pts = self.calm_before_the_storm(pts)
@@ -186,6 +186,7 @@ class DLT(Pose):
         best_pairs = set()
         best_pairs_co_ords = set()
         best_projection = None
+        total_error = None
 
         point_map = self.get_point_map(wc, ic)
 
@@ -224,21 +225,23 @@ class DLT(Pose):
                 approximation = self.de_normalize(
                     tt_ic, tt_wc, approximation_normalized
                 )
-
-                # approximation = self.estimate(
-                #     wc,
-                #     ic,
+                #
+                # approximation = self.solve(
+                #     self.create_linear_eqn(
+                #         wc=wc,
+                #         ic=ic,
+                #     )
                 # )
 
                 if np.all(np.isnan(approximation) == False):
-                    wc, ic = self.get_wc_ic_from_map(np.array(point_map))
+                    wc, ic = self.get_wc_ic_from_map(np.array(remaining_pairs))
 
                     wc = self.to_homogenous(wc)
                     ic = self.to_homogenous(ic)
 
                     pe1 = self.projection_error(approximation, ic, wc)
                     pt_below_threshold = np.where(pe1 < 5)
-                    pairs_co_ords = np.array(points_range)[pt_below_threshold]
+                    pairs_co_ords = np.array(remaining_points)[pt_below_threshold]
                     matched_pair = np.hstack(
                         [
                             wc[pt_below_threshold][:, 0:3],
@@ -249,22 +252,15 @@ class DLT(Pose):
                         best_pairs = matched_pair
                         best_projection = approximation
                         best_pairs_co_ords = pairs_co_ords
-                        print(f"\t\t└──>ITERATION {i + 1}, ERROR {np.mean(pe1)}")
+                        total_error = np.mean(pe1)
+                        print(f"\t\t└──>ITERATION {i + 1}, ERROR {total_error}")
 
                     if len(best_pairs) > (len(point_map) * threshold):
                         break
 
         if best_pairs is not None and len(best_pairs) > 6:
-            bp = np.array(list(point_map))
-            wc, ic = self.get_wc_ic_from_map(np.array(bp))
-
-            total_error = self.projection_error(
-                projection_matrix=best_projection,
-                ic=self.to_homogenous(ic),
-                wc=self.to_homogenous(wc),
-            )
             print(f"\t└──>BEST INLIERS {len(best_pairs)}")
-            print(f"\t\t└──>REFINED ERROR {np.mean(total_error)}")
+            print(f"\t\t└──>TOTAL ERROR {total_error}")
 
         return best_projection, best_pairs, best_pairs_co_ords
 
