@@ -35,3 +35,8 @@ Using the estimated pose from the previous step, the application proceeds to ren
     ```python
     python rendering/ar.py
     ```
+
+https://github.com/fuzailpalnak/3dRendering/assets/24665570/82e1e5a7-5326-42e1-b50b-2609f1b9617a
+
+
+   
